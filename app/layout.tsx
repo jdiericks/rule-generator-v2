@@ -1,12 +1,15 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { auth } from '@/lib/auth'
+import Providers from '@/components/SessionProvider'
 
 export const metadata: Metadata = {
   title: 'Cursor Rules Builder',
   description: 'Build, manage, and generate Cursor AI rule files for your projects',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth()
   return (
     <html lang="en">
       <head>
@@ -17,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <Providers session={session}>{children}</Providers>
+      </body>
     </html>
   )
 }

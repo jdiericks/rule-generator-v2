@@ -1,18 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireUserId, badRequest, serverError } from '@/lib/api-utils'
+import { getStoredAnthropicKey } from '@/lib/anthropic-key'
+
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  const apiKey = req.headers.get('x-api-key')
+  const auth = await requireUserId()
+  if (auth instanceof NextResponse) return auth
+
+  const apiKey = await getStoredAnthropicKey(auth.userId)
   if (!apiKey) {
-    return NextResponse.json({ error: 'Missing API key' }, { status: 401 })
+    return NextResponse.json(
+      { error: 'Anthropic API key not configured. Add one in Settings.' },
+      { status: 412 }
+    )
   }
 
-  const body = await req.json()
+  let body: {
+    projectName?: string
+    projectDescription?: string
+    techStack?: string[]
+    section?: {
+      name: string
+      type: string
+      globs: string
+      alwaysApply: boolean
+      description: string
+      requirements: string
+    }
+  }
+  try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
+
   const { projectName, projectDescription, techStack, section } = body
-
-  if (!section) {
-    return NextResponse.json({ error: 'Missing section data' }, { status: 400 })
-  }
+  if (!section) return badRequest('Missing section data')
 
   const client = new Anthropic({ apiKey })
 
@@ -67,11 +88,9 @@ Output the complete MDC file starting with ---`
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     })
-
     const content = (message.content[0] as { text: string }).text
     return NextResponse.json({ content })
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Generation failed'
-    return NextResponse.json({ error: msg }, { status: 500 })
+  } catch (err) {
+    return serverError(err)
   }
 }

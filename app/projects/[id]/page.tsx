@@ -7,8 +7,9 @@ import { RuleTemplate } from '@/lib/types'
 import SectionEditor from '@/components/SectionEditor'
 import GeneratePanel from '@/components/GeneratePanel'
 import TemplatesModal from '@/components/TemplatesModal'
+import GithubPanel from '@/components/GithubPanel'
 
-type Tab = 'editor' | 'generate'
+type Tab = 'editor' | 'generate' | 'github'
 
 const SECTION_ICONS: Record<string, string> = {
   'code-style': 'M',
@@ -37,8 +38,8 @@ export default function ProjectPage() {
   const [nameVal, setNameVal] = useState('')
   const [showStackEditor, setShowStackEditor] = useState(false)
 
-  const refresh = useCallback(() => {
-    const p = getProject(projectId)
+  const refresh = useCallback(async () => {
+    const p = await getProject(projectId)
     if (!p) { router.push('/'); return }
     setProject(p)
   }, [projectId, router])
@@ -56,9 +57,9 @@ export default function ProjectPage() {
   const activeSection = project.sections.find(s => s.id === activeSectionId)
   const generatedCount = project.sections.filter(s => s.generatedContent).length
 
-  function handleAddSection(type: SectionType) {
+  async function handleAddSection(type: SectionType) {
     const meta = SECTION_TYPE_META.find(t => t.value === type)!
-    const s = addSection(projectId, {
+    const s = await addSection(projectId, {
       name: meta.label,
       type,
       globs: meta.globs,
@@ -75,26 +76,25 @@ export default function ProjectPage() {
     refresh()
   }
 
-  function saveName() {
-    if (nameVal.trim()) updateProject(projectId, { name: nameVal.trim() })
+  async function saveName() {
+    if (nameVal.trim()) await updateProject(projectId, { name: nameVal.trim() })
     setEditingName(false)
     refresh()
   }
 
-  function toggleTech(t: string) {
+  async function toggleTech(t: string) {
     const stack = project!.techStack
-    updateProject(projectId, { techStack: stack.includes(t) ? stack.filter(x => x !== t) : [...stack, t] })
+    await updateProject(projectId, { techStack: stack.includes(t) ? stack.filter(x => x !== t) : [...stack, t] })
     refresh()
   }
 
-  function applyTemplate(template: RuleTemplate) {
-    applyTemplateSections(projectId, template.sections.map((s, i) => ({ ...s, order: i })), template.techTags)
+  async function applyTemplate(template: RuleTemplate) {
+    await applyTemplateSections(projectId, template.sections.map((s, i) => ({ ...s, order: i })), template.techTags)
     refresh()
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      {/* Top bar */}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '0 1.25rem', height: 52, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <button className="btn-ghost" onClick={() => router.push('/')} style={{ padding: '6px 8px' }} title="Back to projects">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -129,7 +129,7 @@ export default function ProjectPage() {
           </button>
 
           <div style={{ display: 'flex', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 2, gap: 2 }}>
-            {(['editor', 'generate'] as Tab[]).map(t => (
+            {(['editor', 'generate', 'github'] as Tab[]).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -154,9 +154,7 @@ export default function ProjectPage() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Sidebar */}
         <aside style={{ width: 210, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', background: 'var(--bg1)' }}>
-          {/* Tech stack */}
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
             <button
               onClick={() => setShowStackEditor(!showStackEditor)}
@@ -185,7 +183,6 @@ export default function ProjectPage() {
             )}
           </div>
 
-          {/* Sections list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
             <p className="label" style={{ padding: '4px 4px 6px', display: 'block' }}>Sections</p>
             {project.sections.length === 0 && (
@@ -214,7 +211,6 @@ export default function ProjectPage() {
             ))}
           </div>
 
-          {/* Add section */}
           <div style={{ padding: '8px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
             <button
               className="btn"
@@ -247,7 +243,6 @@ export default function ProjectPage() {
           </div>
         </aside>
 
-        {/* Main content */}
         <main style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
           {tab === 'editor' ? (
             activeSection ? (
@@ -268,7 +263,7 @@ export default function ProjectPage() {
                 </div>
               </div>
             )
-          ) : (
+          ) : tab === 'generate' ? (
             <div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>Generate rule files</p>
@@ -277,6 +272,17 @@ export default function ProjectPage() {
                 </p>
               </div>
               <GeneratePanel project={project} onUpdate={refresh} />
+            </div>
+          ) : (
+            <div>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>GitHub</p>
+                <p style={{ fontSize: 12, color: 'var(--text3)' }}>
+                  Link this project to a GitHub repository and commit generated{' '}
+                  <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> files directly.
+                </p>
+              </div>
+              <GithubPanel project={project} />
             </div>
           )}
         </main>
