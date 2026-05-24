@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Project, RuleSection, SECTION_TYPE_META, SECTION_PLACEHOLDERS } from '@/lib/types'
 import { updateSection, deleteSection, getApiKeyStatus } from '@/lib/storage'
+import { syncFrontMatter } from '@/lib/mdc'
 
 interface Props {
   section: RuleSection
@@ -13,6 +14,10 @@ interface Props {
 function kebab(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
+
+// Metadata fields whose values are reflected in the MDC frontmatter and
+// therefore should also live-update the rule content.
+type MetaField = 'name' | 'globs' | 'alwaysApply' | 'description'
 
 export default function SectionEditor({ section, project, onUpdate, onDelete }: Props) {
   const [form, setForm] = useState({ ...section })
@@ -35,6 +40,27 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
 
   function set<K extends keyof RuleSection>(key: K, val: RuleSection[K]) {
     setForm((f) => ({ ...f, [key]: val }))
+    setDirty(true)
+    setSaved(false)
+  }
+
+  // Update a metadata field AND keep the MDC frontmatter inside the
+  // generatedContent in sync with it, so users see the file header update
+  // live as they tweak the section.
+  function setMeta<K extends MetaField>(key: K, val: RuleSection[K]) {
+    setForm((f) => {
+      const next = { ...f, [key]: val }
+      next.generatedContent = syncFrontMatter(
+        f.generatedContent,
+        {
+          description: next.description,
+          globs: next.globs,
+          alwaysApply: next.alwaysApply,
+        },
+        next.name
+      )
+      return next
+    })
     setDirty(true)
     setSaved(false)
   }
@@ -105,7 +131,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10 }}>
         <div>
           <p className="label" style={{ marginBottom: 5 }}>Section name</p>
-          <input value={form.name} onChange={(e) => set('name', e.target.value)} onBlur={() => save()} />
+          <input value={form.name} onChange={(e) => setMeta('name', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <p className="label" style={{ marginBottom: 5 }}>Type</p>
@@ -113,7 +139,24 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
             value={form.type}
             onChange={(e) => {
               const t = SECTION_TYPE_META.find((x) => x.value === e.target.value)
-              setForm((f) => ({ ...f, type: e.target.value as RuleSection['type'], globs: t?.globs ?? f.globs, alwaysApply: t?.alwaysApply ?? f.alwaysApply }))
+              setForm((f) => {
+                const next = {
+                  ...f,
+                  type: e.target.value as RuleSection['type'],
+                  globs: t?.globs ?? f.globs,
+                  alwaysApply: t?.alwaysApply ?? f.alwaysApply,
+                }
+                next.generatedContent = syncFrontMatter(
+                  f.generatedContent,
+                  {
+                    description: next.description,
+                    globs: next.globs,
+                    alwaysApply: next.alwaysApply,
+                  },
+                  next.name
+                )
+                return next
+              })
               setDirty(true)
             }}
             onBlur={() => save()}
@@ -132,7 +175,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
           </p>
           <input
             value={form.globs}
-            onChange={(e) => set('globs', e.target.value)}
+            onChange={(e) => setMeta('globs', e.target.value)}
             onBlur={() => save()}
             placeholder="**/*.{ts,tsx} or leave empty"
             style={{ fontFamily: 'var(--mono)', fontSize: 12 }}
@@ -141,7 +184,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
         <div style={{ paddingBottom: 2 }}>
           <p className="label" style={{ marginBottom: 5 }}>Always apply</p>
           <button
-            onClick={() => { set('alwaysApply', !form.alwaysApply); setTimeout(() => save(), 0) }}
+            onClick={() => { setMeta('alwaysApply', !form.alwaysApply); setTimeout(() => save(), 0) }}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
               border: '1px solid', borderRadius: 'var(--radius)', fontSize: 12,
@@ -162,7 +205,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
         </p>
         <input
           value={form.description}
-          onChange={(e) => set('description', e.target.value)}
+          onChange={(e) => setMeta('description', e.target.value)}
           onBlur={() => save()}
           placeholder="e.g. Enforces TypeScript code standards across the project"
         />
@@ -171,25 +214,8 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
           <p className="label">
-            Notes <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text3)', fontWeight: 400 }}>— optional bullet list of intended rules</span>
-          </p>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>also used as AI prompt input</span>
-        </div>
-        <textarea
-          value={form.requirements}
-          onChange={(e) => set('requirements', e.target.value)}
-          onBlur={() => save()}
-          placeholder={placeholder}
-          rows={6}
-          style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.7 }}
-        />
-      </div>
-
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-          <p className="label">
             Rule content <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text3)', fontWeight: 400 }}>
-              — the actual <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> file that gets downloaded / pushed
+              — the actual <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> file. Frontmatter auto-syncs from the fields above; the body is yours.
             </span>
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -206,6 +232,24 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
           style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.6 }}
         />
       </div>
+
+      {aiAvailable && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+            <p className="label">
+              AI prompt notes <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text3)', fontWeight: 400 }}>— optional bullet list passed to Claude when drafting or expanding</span>
+            </p>
+          </div>
+          <textarea
+            value={form.requirements}
+            onChange={(e) => set('requirements', e.target.value)}
+            onBlur={() => save()}
+            placeholder={placeholder}
+            rows={5}
+            style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.7 }}
+          />
+        </div>
+      )}
 
       <div
         style={{
