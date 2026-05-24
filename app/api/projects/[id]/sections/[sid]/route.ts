@@ -4,6 +4,7 @@ import { db } from '@/lib/db/client'
 import { projects, sections } from '@/lib/db/schema'
 import { requireUserId, badRequest, notFound, serverError } from '@/lib/api-utils'
 import { serializeSection } from '@/lib/db/serialize'
+import { syncFrontMatter } from '@/lib/mdc'
 
 export const runtime = 'nodejs'
 
@@ -28,6 +29,8 @@ const EDITABLE = [
   'order',
 ] as const
 
+const META_FIELDS = ['name', 'globs', 'alwaysApply', 'description'] as const
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string; sid: string } }
@@ -47,6 +50,38 @@ export async function PATCH(
       if (k in body) updates[k] = body[k]
     }
     if (Object.keys(updates).length === 0) return badRequest('No editable fields supplied')
+
+    // If the caller is changing any metadata field that maps into MDC
+    // frontmatter but did NOT supply new generatedContent themselves,
+    // re-sync the frontmatter against the stored content so the file
+    // stays consistent with the section's fields.
+    const metaChanged = META_FIELDS.some((f) => f in body)
+    const explicitContent = 'generatedContent' in body
+    if (metaChanged && !explicitContent) {
+      const [existing] = await db
+        .select()
+        .from(sections)
+        .where(and(eq(sections.id, params.sid), eq(sections.projectId, params.id)))
+        .limit(1)
+      if (existing) {
+        const merged = {
+          name: (updates.name as string | undefined) ?? existing.name,
+          description: (updates.description as string | undefined) ?? existing.description,
+          globs: (updates.globs as string | undefined) ?? existing.globs,
+          alwaysApply:
+            (updates.alwaysApply as boolean | undefined) ?? existing.alwaysApply,
+        }
+        updates.generatedContent = syncFrontMatter(
+          existing.generatedContent,
+          {
+            description: merged.description,
+            globs: merged.globs,
+            alwaysApply: merged.alwaysApply,
+          },
+          merged.name
+        )
+      }
+    }
 
     const [row] = await db
       .update(sections)
