@@ -39,6 +39,7 @@ export default function ProjectPage() {
   const [editingName, setEditingName] = useState(false)
   const [nameVal, setNameVal] = useState('')
   const [showStackEditor, setShowStackEditor] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     const p = await getProject(projectId)
@@ -97,9 +98,18 @@ export default function ProjectPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '0 1.25rem', height: 52, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '0 0.75rem', height: 52, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <button className="btn-ghost" onClick={() => router.push('/')} style={{ padding: '6px 8px' }} title="Back to projects">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <button
+          className="btn-ghost show-mobile"
+          onClick={() => setSidebarOpen((v) => !v)}
+          style={{ padding: '6px 8px' }}
+          title="Sections"
+          aria-label="Toggle sections sidebar"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -125,9 +135,9 @@ export default function ProjectPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTemplates(true)}>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTemplates(true)} title="Templates">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            Templates
+            <span className="hide-mobile">Templates</span>
           </button>
           <button
             className="btn btn-ghost"
@@ -137,7 +147,7 @@ export default function ProjectPage() {
             title={project.sections.length === 0 ? 'Add sections first' : 'Save current sections as a reusable template'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Save as template
+            <span className="hide-mobile">Save as template</span>
           </button>
 
           <div style={{ display: 'flex', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 2, gap: 2 }}>
@@ -165,8 +175,18 @@ export default function ProjectPage() {
         </div>
       </header>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside style={{ width: 210, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', background: 'var(--bg1)' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {sidebarOpen && (
+          <div
+            data-mobile-drawer-backdrop="true"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        <aside
+          data-mobile-drawer="true"
+          data-open={sidebarOpen ? 'true' : 'false'}
+          style={{ width: 210, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', background: 'var(--bg1)' }}
+        >
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
             <button
               onClick={() => setShowStackEditor(!showStackEditor)}
@@ -203,7 +223,7 @@ export default function ProjectPage() {
             {project.sections.map(s => (
               <button
                 key={s.id}
-                onClick={() => { setActiveSectionId(s.id); setTab('editor') }}
+                onClick={() => { setActiveSectionId(s.id); setTab('editor'); setSidebarOpen(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px',
                   borderRadius: 'var(--radius)', marginBottom: 2, textAlign: 'left', fontSize: 12,
@@ -255,7 +275,7 @@ export default function ProjectPage() {
           </div>
         </aside>
 
-        <main style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+        <main style={{ flex: 1, overflowY: 'auto', padding: '1rem', minWidth: 0 }}>
           {tab === 'editor' ? (
             activeSection ? (
               <SectionEditor

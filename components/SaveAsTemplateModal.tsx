@@ -117,11 +117,13 @@ export default function SaveAsTemplateModal({ project, onClose, onSaved }: Props
 
   return (
     <div
+      data-mobile-modal-overlay
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={onClose}
     >
       <div
         className="fade-in"
+        data-mobile-modal-full="true"
         style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '100%', maxWidth: 520, maxHeight: '85vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >

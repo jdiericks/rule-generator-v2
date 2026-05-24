@@ -64,11 +64,13 @@ export default function TemplatesModal({ projectId, onApply, onClose }: Props) {
 
   return (
     <div
+      data-mobile-modal-overlay
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={onClose}
     >
       <div
         className="fade-in"
+        data-mobile-modal-full="true"
         style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 720, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -126,7 +128,7 @@ export default function TemplatesModal({ projectId, onApply, onClose }: Props) {
           <div style={{ padding: '8px 1.25rem', background: 'rgba(220,60,60,0.08)', borderBottom: '1px solid var(--red)', fontSize: 12, color: 'var(--red)' }}>{err}</div>
         )}
 
-        <div style={{ overflowY: 'auto', padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div data-mobile-stack-grid="true" style={{ overflowY: 'auto', padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {templates === null && (
             <p style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text3)' }}>Loading…</p>
           )}
@@ -250,11 +252,13 @@ function EditTemplateModal({
 
   return (
     <div
+      data-mobile-modal-overlay
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={onClose}
     >
       <div
         className="fade-in"
+        data-mobile-modal-full="true"
         style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '100%', maxWidth: 520, maxHeight: '85vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
