@@ -9,7 +9,7 @@ import GeneratePanel from '@/components/GeneratePanel'
 import TemplatesModal from '@/components/TemplatesModal'
 import GithubPanel from '@/components/GithubPanel'
 
-type Tab = 'editor' | 'generate' | 'github'
+type Tab = 'editor' | 'files' | 'github'
 
 const SECTION_ICONS: Record<string, string> = {
   'code-style': 'M',
@@ -129,7 +129,7 @@ export default function ProjectPage() {
           </button>
 
           <div style={{ display: 'flex', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 2, gap: 2 }}>
-            {(['editor', 'generate', 'github'] as Tab[]).map(t => (
+            {(['editor', 'files', 'github'] as Tab[]).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -141,7 +141,7 @@ export default function ProjectPage() {
                   display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
-                {t === 'generate' && generatedCount > 0 && (
+                {t === 'files' && generatedCount > 0 && (
                   <span style={{ background: 'var(--green)', color: 'var(--bg)', fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px', borderRadius: 3, lineHeight: '16px' }}>
                     {generatedCount}
                   </span>
@@ -249,7 +249,7 @@ export default function ProjectPage() {
               <SectionEditor
                 key={activeSection.id}
                 section={activeSection}
-                projectId={projectId}
+                project={project}
                 onUpdate={refresh}
                 onDelete={() => { setActiveSectionId(null); refresh() }}
               />
@@ -263,12 +263,12 @@ export default function ProjectPage() {
                 </div>
               </div>
             )
-          ) : tab === 'generate' ? (
+          ) : tab === 'files' ? (
             <div>
               <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>Generate rule files</p>
+                <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>Rule files</p>
                 <p style={{ fontSize: 12, color: 'var(--text3)' }}>
-                  Generates one <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> per section. Files go in <span style={{ fontFamily: 'var(--mono)' }}>.cursor/rules/</span> in your repo.
+                  One <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> per section. Write them yourself, or use AI assistance from the editor. Files go in <span style={{ fontFamily: 'var(--mono)' }}>.cursor/rules/</span> in your repo.
                 </p>
               </div>
               <GeneratePanel project={project} onUpdate={refresh} />

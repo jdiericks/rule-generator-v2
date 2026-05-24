@@ -5,6 +5,24 @@ import { getStoredAnthropicKey } from '@/lib/anthropic-key'
 
 export const runtime = 'nodejs'
 
+type Mode = 'draft' | 'expand'
+
+interface GenerateBody {
+  mode?: Mode
+  projectName?: string
+  projectDescription?: string
+  techStack?: string[]
+  existingContent?: string
+  section?: {
+    name: string
+    type: string
+    globs: string
+    alwaysApply: boolean
+    description: string
+    requirements: string
+  }
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireUserId()
   if (auth instanceof NextResponse) return auth
@@ -12,28 +30,22 @@ export async function POST(req: NextRequest) {
   const apiKey = await getStoredAnthropicKey(auth.userId)
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Anthropic API key not configured. Add one in Settings.' },
+      {
+        error:
+          'Anthropic API key not configured. AI assistance is optional — add a key in Settings to use it.',
+      },
       { status: 412 }
     )
   }
 
-  let body: {
-    projectName?: string
-    projectDescription?: string
-    techStack?: string[]
-    section?: {
-      name: string
-      type: string
-      globs: string
-      alwaysApply: boolean
-      description: string
-      requirements: string
-    }
-  }
+  let body: GenerateBody
   try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
 
-  const { projectName, projectDescription, techStack, section } = body
+  const { mode = 'draft', projectName, projectDescription, techStack, section, existingContent } = body
   if (!section) return badRequest('Missing section data')
+  if (mode === 'expand' && !existingContent?.trim()) {
+    return badRequest('`expand` mode requires `existingContent`')
+  }
 
   const client = new Anthropic({ apiKey })
 
@@ -62,9 +74,7 @@ Rules for good MDC files:
 - Output ONLY the raw MDC file content starting with ---
 - No preamble, no explanation, just the MDC`
 
-  const userPrompt = `Generate a .mdc Cursor rules file.
-
-PROJECT:
+  const projectBlock = `PROJECT:
   Name: ${projectName || 'My Project'}
   Description: ${projectDescription || 'A software project'}
   Tech Stack: ${techStack?.join(', ') || 'Not specified'}
@@ -74,7 +84,32 @@ RULE SECTION:
   Type: ${section.type}
   Globs: ${section.globs || '(not specified — applies broadly)'}
   Always Apply: ${section.alwaysApply}
-  Purpose: ${section.description || 'Not specified'}
+  Purpose: ${section.description || 'Not specified'}`
+
+  const userPrompt =
+    mode === 'expand'
+      ? `Expand and refine the existing Cursor .mdc rule file below.
+
+${projectBlock}
+
+AUTHOR NOTES (optional priorities, requirements, or things to emphasize):
+${section.requirements || '(none — use your judgement to expand thoroughly)'}
+
+EXISTING .mdc CONTENT:
+"""
+${existingContent}
+"""
+
+Rewrite the file so it:
+- Preserves every intent and rule already present
+- Fills in concrete examples, edge cases, and rationale where it would help
+- Tightens vague language into specific, enforceable rules
+- Keeps the MDC frontmatter consistent with the section's globs / alwaysApply
+
+Output the complete MDC file starting with ---. No preamble.`
+      : `Generate a .mdc Cursor rules file.
+
+${projectBlock}
 
 DEVELOPER REQUIREMENTS:
 ${section.requirements || 'Apply industry best practices for this rule type.'}
@@ -89,7 +124,7 @@ Output the complete MDC file starting with ---`
       messages: [{ role: 'user', content: userPrompt }],
     })
     const content = (message.content[0] as { text: string }).text
-    return NextResponse.json({ content })
+    return NextResponse.json({ content, mode })
   } catch (err) {
     return serverError(err)
   }
