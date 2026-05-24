@@ -131,3 +131,31 @@ export const projectGithubLinks = pgTable('project_github_links', {
     .notNull()
     .$defaultFn(() => new Date()),
 })
+
+export type TemplateSectionData = {
+  name: string
+  type: string
+  globs: string
+  alwaysApply: boolean
+  description: string
+  requirements: string
+  order: number
+}
+
+export const userTemplates = pgTable('user_templates', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  category: text('category').notNull().default('custom'),
+  techTags: jsonb('tech_tags').$type<string[]>().notNull().default([]),
+  sections: jsonb('sections').$type<TemplateSectionData[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})

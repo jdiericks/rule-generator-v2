@@ -7,6 +7,7 @@ import { RuleTemplate } from '@/lib/types'
 import SectionEditor from '@/components/SectionEditor'
 import GeneratePanel from '@/components/GeneratePanel'
 import TemplatesModal from '@/components/TemplatesModal'
+import SaveAsTemplateModal from '@/components/SaveAsTemplateModal'
 import GithubPanel from '@/components/GithubPanel'
 
 type Tab = 'editor' | 'files' | 'github'
@@ -34,6 +35,7 @@ export default function ProjectPage() {
   const [tab, setTab] = useState<Tab>('editor')
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameVal, setNameVal] = useState('')
   const [showStackEditor, setShowStackEditor] = useState(false)
@@ -126,6 +128,16 @@ export default function ProjectPage() {
           <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTemplates(true)}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             Templates
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12 }}
+            onClick={() => setShowSaveTemplate(true)}
+            disabled={project.sections.length === 0}
+            title={project.sections.length === 0 ? 'Add sections first' : 'Save current sections as a reusable template'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save as template
           </button>
 
           <div style={{ display: 'flex', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 2, gap: 2 }}>
@@ -293,6 +305,13 @@ export default function ProjectPage() {
           projectId={projectId}
           onApply={applyTemplate}
           onClose={() => setShowTemplates(false)}
+        />
+      )}
+
+      {showSaveTemplate && (
+        <SaveAsTemplateModal
+          project={project}
+          onClose={() => setShowSaveTemplate(false)}
         />
       )}
     </div>

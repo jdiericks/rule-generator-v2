@@ -28,6 +28,10 @@ export interface RuleTemplate {
   category: TemplateCategory
   techTags: string[]
   sections: Omit<RuleSection, 'id' | 'generatedContent' | 'filename'>[]
+  // 'system' = built-in (read-only) · 'user' = saved by the current account
+  source?: 'system' | 'user'
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type SectionType =
