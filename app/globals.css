@@ -215,3 +215,85 @@ pre {
   outline: 2px solid var(--accent-dim);
   outline-offset: 2px;
 }
+
+/* ─── Responsive utilities ──────────────────────────────────────────────
+   Small set of utility classes plus mobile overrides so the existing
+   inline-styled layout can adapt to phones without a full rewrite.
+   `data-mobile-*` attributes are used to opt specific elements into
+   mobile-only behaviour (drawer, full-screen modals, stacking, etc.).
+*/
+
+.show-mobile { display: none; }
+
+@media (max-width: 640px) {
+  /* Slightly larger base text + prevent iOS input zoom */
+  input, textarea, select { font-size: 16px; }
+
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: inline-flex !important; }
+
+  /* Generic helpers (use these from component inline styles where useful) */
+  [data-mobile-stack="true"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  [data-mobile-stack-grid="true"] {
+    grid-template-columns: 1fr !important;
+  }
+  [data-mobile-wrap="true"] {
+    flex-wrap: wrap !important;
+  }
+  [data-mobile-full="true"] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  [data-mobile-compact-pad="true"] {
+    padding: 12px !important;
+  }
+
+  /* Full-screen modals */
+  [data-mobile-modal-full="true"] {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+  [data-mobile-modal-overlay] {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
+  /* Project page off-canvas sidebar */
+  [data-mobile-drawer="true"] {
+    position: fixed !important;
+    top: 52px !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: calc(100dvh - 52px) !important;
+    width: 82vw !important;
+    max-width: 300px !important;
+    z-index: 60 !important;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.5);
+  }
+  [data-mobile-drawer="true"][data-open="true"] {
+    transform: translateX(0);
+  }
+  [data-mobile-drawer-backdrop="true"] {
+    display: block !important;
+    position: fixed !important;
+    top: 52px !important;
+    inset: 52px 0 0 0 !important;
+    background: rgba(0, 0, 0, 0.55) !important;
+    z-index: 55 !important;
+  }
+}
+
+[data-mobile-drawer-backdrop="true"] { display: none; }
+
+/* Always allow scrolling, even when a modal opens (prevents layout jump on
+   mobile keyboards) */
+html, body { overscroll-behavior-y: contain; }

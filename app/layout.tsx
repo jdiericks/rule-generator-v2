@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { auth } from '@/lib/auth'
 import Providers from '@/components/SessionProvider'
@@ -6,6 +6,13 @@ import Providers from '@/components/SessionProvider'
 export const metadata: Metadata = {
   title: 'Cursor Rules Builder',
   description: 'Build, manage, and generate Cursor AI rule files for your projects',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#0d0d0d',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

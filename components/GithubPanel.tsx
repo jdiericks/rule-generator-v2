@@ -186,7 +186,7 @@ export default function GithubPanel({ project }: Props) {
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div data-mobile-stack-grid="true" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <p className="label" style={{ marginBottom: 5 }}>Branch</p>
               <input
@@ -276,11 +276,13 @@ export default function GithubPanel({ project }: Props) {
 
       {showPicker && (
         <div
+          data-mobile-modal-overlay
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
           onClick={() => setShowPicker(false)}
         >
           <div
             className="fade-in"
+            data-mobile-modal-full="true"
             style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >

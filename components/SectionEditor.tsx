@@ -128,7 +128,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10 }}>
+      <div data-mobile-stack-grid="true" style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10 }}>
         <div>
           <p className="label" style={{ marginBottom: 5 }}>Section name</p>
           <input value={form.name} onChange={(e) => setMeta('name', e.target.value)} onBlur={() => save()} />
@@ -168,7 +168,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
+      <div data-mobile-stack-grid="true" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
         <div>
           <p className="label" style={{ marginBottom: 5 }}>
             Globs <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text3)', fontWeight: 400 }}>— file patterns this rule targets</span>

@@ -100,25 +100,25 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '0 1.5rem', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '0 1rem', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--accent)', letterSpacing: '-0.01em' }}>rules/</span>
           <span style={{ color: 'var(--text3)', fontSize: 13 }}>builder</span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTemplates(true)}>
+        <div data-mobile-wrap="true" style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTemplates(true)} title="Templates">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            Templates
+            <span className="hide-mobile">Templates</span>
           </button>
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowSettings(true)}>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowSettings(true)} title="Settings">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            Settings
+            <span className="hide-mobile">Settings</span>
           </button>
-          <button className="btn btn-accent" onClick={() => setShowNew(true)}>
+          <button className="btn btn-accent" onClick={() => setShowNew(true)} title="New project">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-            New project
+            <span className="hide-mobile">New project</span>
           </button>
           {session?.user && (
             <div style={{ position: 'relative' }}>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <main style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: 760, width: '100%', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '1.25rem 1rem', maxWidth: 760, width: '100%', margin: '0 auto' }}>
         {showNew && (
           <div className="fade-in" style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
@@ -242,7 +242,8 @@ export default function DashboardPage() {
               <div
                 key={p.id}
                 onClick={() => router.push(`/projects/${p.id}`)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', transition: 'border-color 0.12s, background 0.12s' }}
+                data-mobile-wrap="true"
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', transition: 'border-color 0.12s, background 0.12s' }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg2)' }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg1)' }}
               >
@@ -264,11 +265,9 @@ export default function DashboardPage() {
                   {new Date(p.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
                 <button
-                  className="btn-ghost"
+                  className="btn-ghost project-row-delete"
                   onClick={(e) => handleDeleteProject(e, p.id)}
-                  style={{ padding: '4px 6px', flexShrink: 0, opacity: 0, transition: 'opacity 0.12s' }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = '1')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = '0')}
+                  style={{ padding: '4px 6px', flexShrink: 0 }}
                   title="Delete project"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -284,8 +283,8 @@ export default function DashboardPage() {
       )}
 
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowSettings(false)}>
-          <div className="fade-in" style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '100%', maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div data-mobile-modal-overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowSettings(false)}>
+          <div data-mobile-modal-full="true" className="fade-in" style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '100%', maxWidth: 460, overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <span style={{ fontWeight: 500 }}>Settings</span>
               <button className="btn-ghost" onClick={() => setShowSettings(false)}>

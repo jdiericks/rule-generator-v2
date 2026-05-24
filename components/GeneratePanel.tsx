@@ -186,6 +186,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
           return (
             <div
               key={section.id}
+              data-mobile-wrap="true"
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: file ? 'pointer' : 'default', transition: 'border-color 0.1s', borderColor: activeId === section.id && file ? 'var(--border2)' : 'var(--border)' }}
               onClick={() => file && setActiveId(section.id)}
             >
