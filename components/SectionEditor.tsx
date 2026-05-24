@@ -27,18 +27,18 @@ export default function SectionEditor({ section, projectId, onUpdate, onDelete }
     setSaved(false)
   }
 
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
     if (!dirty) return
-    updateSection(projectId, section.id, form)
+    await updateSection(projectId, section.id, form)
     setDirty(false)
     setSaved(true)
     onUpdate()
     setTimeout(() => setSaved(false), 2000)
   }, [dirty, form, projectId, section.id, onUpdate])
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!confirm('Delete this section?')) return
-    deleteSection(projectId, section.id)
+    await deleteSection(projectId, section.id)
     onDelete()
   }
 

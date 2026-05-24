@@ -1,19 +1,43 @@
 # Cursor Rules Builder
 
-A frontend-only app for building, managing, and generating Cursor AI rule files (`.mdc`).
+A multi-tenant app for building, managing, and generating Cursor AI rule files
+(`.mdc`) — with login, per-account project storage, and one-click commits into
+your GitHub repositories.
 
-**Stack:** Next.js 14 · TypeScript · Deployed on Vercel
-
-No database, no auth, no backend services. Everything persists in your browser's localStorage. The only server-side piece is a single Next.js API route that proxies Claude generation calls.
+**Stack:** Next.js 14 · TypeScript · NextAuth (GitHub) · Drizzle ORM · Neon
+Postgres · Anthropic Claude · Octokit · Deployed on Vercel
 
 ## Features
 
-- **Project management** — create and organize rule projects in localStorage
-- **Section builder** — 10 rule types with placeholder guidance for each
-- **7 built-in templates** — Next.js, FastAPI, SaaS Fullstack, MCP Server, Testing, Git/CI, and more
-- **Claude-powered generation** — your Anthropic API key generates detailed MDC files
-- **Per-section regeneration** — regenerate individual sections without losing others
-- **Download** — individual `.mdc` files or a full `.zip` ready to drop in `.cursor/rules/`
+- **Sign in with GitHub** — each user gets a private workspace
+- **Per-account storage** — projects, sections, and the Anthropic API key are
+  scoped to your account in Postgres
+- **Encrypted Anthropic key at rest** — AES-256-GCM, never exposed to the client
+- **Section builder** — 10 rule types with guided placeholders
+- **Templates** — 7 built-in starter rule sets (Next.js, FastAPI, MCP, …)
+- **Claude-powered generation** — one `.mdc` per section, regenerate individually
+- **Download** — individual `.mdc` files or a `.zip` of the full
+  `.cursor/rules/` folder
+- **Push to GitHub** — link any repo and commit generated rules directly into
+  `.cursor/rules/` on a branch of your choice
+
+---
+
+## Required services
+
+Spin up these three before running locally or deploying:
+
+1. **Neon Postgres** — create a database at
+   [console.neon.tech](https://console.neon.tech/) and copy the pooled
+   connection string.
+2. **GitHub OAuth App** — register at
+   [github.com/settings/developers](https://github.com/settings/developers).
+   - Homepage URL: your deployed URL (or `http://localhost:3000`)
+   - Authorization callback URL:
+     `{NEXTAUTH_URL}/api/auth/callback/github`
+   - The app requests the `repo` scope so users can push to private repos.
+3. **Anthropic API key** — each user adds their own from the in-app Settings
+   panel (no shared key required for deploy).
 
 ---
 
@@ -21,71 +45,69 @@ No database, no auth, no backend services. Everything persists in your browser's
 
 ```bash
 npm install
+cp .env.example .env.local         # then fill in values
+npm run db:migrate                 # apply the schema to your Neon database
 npm run dev
 ```
 
-Open http://localhost:3000 — add your Anthropic API key in Settings.
+Open [http://localhost:3000](http://localhost:3000) and sign in with GitHub.
 
-No environment variables needed for local development.
+### Environment variables
+
+| Var | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | App URL (omit on Vercel where it's auto-detected) |
+| `GITHUB_ID` / `GITHUB_SECRET` | OAuth app credentials |
+| `SECRET_KEY` | 32-byte hex (`openssl rand -hex 32`) — encrypts stored Anthropic keys |
 
 ---
 
 ## Deploy to Vercel
 
-### Option A — Vercel CLI
-
-```bash
-npm i -g vercel
-vercel
-```
-
-### Option B — GitHub + Vercel dashboard
-
-1. Push to a GitHub repo
-2. Import the repo at vercel.com/new
-3. Deploy — no environment variables needed (API key is entered by each user in the UI)
-
-That's it.
+1. Push to a GitHub repo and import it at
+   [vercel.com/new](https://vercel.com/new).
+2. Add a Neon Postgres integration (or paste `DATABASE_URL` manually).
+3. Add the rest of the env vars from `.env.example`.
+4. Set the GitHub OAuth app's callback URL to
+   `https://<your-vercel-url>/api/auth/callback/github`.
+5. Run migrations against the production database one time:
+   `DATABASE_URL=… npm run db:migrate`
+6. Deploy. Every user signs in with their own GitHub account; their projects,
+   API key, and repo links stay isolated.
 
 ---
 
-## How it works
+## Architecture
 
-**Data storage:** All projects and sections are stored in `localStorage` under the key `crb_projects`. Your Anthropic API key is stored under `crb_api_key`.
+| Concern | Where it lives |
+| --- | --- |
+| Auth | `lib/auth.ts`, `app/api/auth/[...nextauth]/route.ts` (NextAuth + GitHub) |
+| DB schema | `lib/db/schema.ts` (Drizzle, Postgres) |
+| Migrations | `drizzle/` (generated via `npm run db:generate`) |
+| Encryption | `lib/crypto.ts` (AES-256-GCM with `SECRET_KEY`) |
+| Project / section CRUD | `app/api/projects/...` (auth-gated, owner-scoped) |
+| Generation | `app/api/generate/route.ts` (uses each user's stored Anthropic key) |
+| GitHub | `app/api/github/*` and `app/api/projects/[id]/github/*` (Octokit) |
+| Client storage shim | `lib/storage.ts` (thin async fetch wrappers — components stay simple) |
 
-**Generation:** When you click Generate, the browser sends a request to `/api/generate` (a Next.js API route). That route uses the Anthropic SDK server-side and returns the generated MDC content. The API key is sent as an `x-api-key` header.
-
-**Files:** Generated content is previewed in-app, stored back to localStorage, and can be downloaded as individual `.mdc` files or a `.zip` containing the full `.cursor/rules/` folder structure.
+The `app/api/projects/[id]/github/push` route uses the GitHub Git Data API to
+write all generated `.mdc` files as a single atomic commit on the linked
+branch. If the branch doesn't yet exist it is created from the repo's default
+branch.
 
 ---
 
 ## Adding templates
 
-Edit `lib/templates.ts` — add a new entry to the `TEMPLATES` array. The structure is:
-
-```ts
-{
-  id: 'unique-id',
-  name: 'Template Name',
-  description: 'What it covers',
-  category: 'frontend',  // frontend | backend | fullstack | testing | devops | mcp
-  techTags: ['Next.js', 'TypeScript'],
-  sections: [
-    {
-      name: 'Section Name',
-      type: 'code-style',
-      globs: '**/*.{ts,tsx}',
-      alwaysApply: true,
-      description: 'What this section enforces',
-      requirements: '- Rule one\n- Rule two',
-      order: 0,
-    },
-  ],
-}
-```
+Edit `lib/templates.ts` — add an entry to the `TEMPLATES` array. The structure
+is unchanged from the original storage-only version of the app.
 
 ---
 
 ## Where generated files go
 
-Drop the downloaded files into `.cursor/rules/` at the root of your project. Cursor picks them up automatically. You can also set `alwaysApply: true` to have a rule file attach to every chat session, or use `globs` to limit it to specific file types.
+Generated files are committed (or downloaded) into `.cursor/rules/` at the root
+of the linked repo. Cursor picks them up automatically. The path is
+configurable per-project in the GitHub tab.

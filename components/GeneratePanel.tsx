@@ -1,8 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Project, RuleSection } from '@/lib/types'
-import { getApiKey } from '@/lib/storage'
-import { updateSection } from '@/lib/storage'
+import { getApiKeyStatus, updateSection } from '@/lib/storage'
 
 interface GeneratedFile {
   sectionId: string
@@ -31,12 +30,16 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
   const [activeId, setActiveId] = useState<string | null>(files[0]?.sectionId ?? null)
   const [copied, setCopied] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
 
-  const apiKey = getApiKey()
+  useEffect(() => {
+    getApiKeyStatus().then((s) => setHasApiKey(s.hasKey)).catch(() => setHasApiKey(false))
+  }, [])
+
   const activeFile = files.find(f => f.sectionId === activeId)
 
   async function generateAll() {
-    if (!apiKey) { alert('Add your Anthropic API key in Settings first.'); return }
+    if (!hasApiKey) { alert('Add your Anthropic API key in Settings first.'); return }
     if (project.sections.length === 0) return
 
     setGenerating(true)
@@ -50,7 +53,7 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
       try {
         const res = await fetch('/api/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projectName: project.name,
             projectDescription: project.description,
@@ -71,8 +74,7 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
         const filename = `${kebab(section.name)}.mdc`
         out.push({ sectionId: section.id, name: section.name, filename, content: data.content })
 
-        // Persist to storage
-        updateSection(project.id, section.id, { generatedContent: data.content, filename })
+        await updateSection(project.id, section.id, { generatedContent: data.content, filename })
         onUpdate()
 
         setFiles([...out])
@@ -88,14 +90,14 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
   }
 
   async function generateOne(section: RuleSection) {
-    if (!apiKey) { alert('Add your Anthropic API key in Settings first.'); return }
+    if (!hasApiKey) { alert('Add your Anthropic API key in Settings first.'); return }
     setGenerating(true)
     setCurrentIdx(project.sections.findIndex(s => s.id === section.id))
 
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectName: project.name,
           projectDescription: project.description,
@@ -107,7 +109,7 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
       if (!res.ok) throw new Error(data.error || 'Generation failed')
 
       const filename = `${kebab(section.name)}.mdc`
-      updateSection(project.id, section.id, { generatedContent: data.content, filename })
+      await updateSection(project.id, section.id, { generatedContent: data.content, filename })
       onUpdate()
 
       setFiles(prev => {
@@ -162,12 +164,11 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Top actions */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           className="btn btn-accent"
           onClick={generateAll}
-          disabled={generating || !apiKey}
+          disabled={generating || !hasApiKey}
           style={{ fontSize: 12 }}
         >
           {generating && currentIdx >= 0 ? (
@@ -190,7 +191,6 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
         )}
       </div>
 
-      {/* Per-section list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {project.sections.map((section, i) => {
           const file = files.find(f => f.sectionId === section.id)
@@ -226,7 +226,6 @@ export default function GeneratePanel({ project, onUpdate }: Props) {
         })}
       </div>
 
-      {/* Preview panel */}
       {activeFile && (
         <div className="fade-in" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)' }}>
