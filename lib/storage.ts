@@ -1,5 +1,5 @@
 'use client'
-import { Project, RuleSection } from './types'
+import { Project, RuleSection, RuleTemplate, SectionType } from './types'
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -191,4 +191,47 @@ export async function pushProjectRules(
     method: 'POST',
     body: JSON.stringify(input),
   })
+}
+
+// --- Templates (system + user-managed) ---
+
+export async function listTemplates(): Promise<RuleTemplate[]> {
+  const data = await http<{ templates: RuleTemplate[] }>('/api/templates')
+  return data.templates
+}
+
+export interface TemplateInput {
+  name: string
+  description?: string
+  category?: string
+  techTags?: string[]
+  sections?: Array<{
+    name: string
+    type: SectionType
+    globs: string
+    alwaysApply: boolean
+    description: string
+    requirements: string
+    order: number
+  }>
+}
+
+export async function createTemplate(input: TemplateInput): Promise<RuleTemplate> {
+  const data = await http<{ template: RuleTemplate }>('/api/templates', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return data.template
+}
+
+export async function updateTemplate(id: string, input: Partial<TemplateInput>): Promise<RuleTemplate> {
+  const data = await http<{ template: RuleTemplate }>(`/api/templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+  return data.template
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  await http(`/api/templates/${id}`, { method: 'DELETE' })
 }
