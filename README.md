@@ -15,7 +15,11 @@ Postgres · Anthropic Claude · Octokit · Deployed on Vercel
 - **Encrypted Anthropic key at rest** — AES-256-GCM, never exposed to the client
 - **Section builder** — 10 rule types with guided placeholders
 - **Templates** — 7 built-in starter rule sets (Next.js, FastAPI, MCP, …)
-- **Claude-powered generation** — one `.mdc` per section, regenerate individually
+- **Write rules yourself** — every section has an editable `.mdc` content
+  textarea; you can ship a project end-to-end without ever touching AI
+- **Optional AI assist (Claude)** — when an Anthropic key is configured, each
+  section gains "Draft with AI" (write a starter `.mdc` from your notes) and
+  "Expand with AI" (expound on the content you've already written)
 - **Download** — individual `.mdc` files or a `.zip` of the full
   `.cursor/rules/` folder
 - **Push to GitHub** — link any repo and commit generated rules directly into
