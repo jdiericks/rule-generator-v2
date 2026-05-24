@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import GitHub from 'next-auth/providers/github'
 import { DrizzleAdapter } from '@auth/drizzle-adapter'
+import { getServerSession } from 'next-auth'
 import { db } from './db/client'
 import {
   users,
@@ -8,7 +9,6 @@ import {
   sessions,
   verificationTokens,
 } from './db/schema'
-import { getServerSession } from 'next-auth'
 
 export const authOptions: NextAuthOptions = {
   adapter: DrizzleAdapter(db, {
@@ -17,7 +17,10 @@ export const authOptions: NextAuthOptions = {
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }) as NextAuthOptions['adapter'],
-  session: { strategy: 'database' },
+  // JWT sessions are required for next-auth/middleware (Edge runtime can't
+  // talk to the database). The Drizzle adapter still persists users +
+  // accounts so we keep GitHub OAuth tokens server-side for API calls.
+  session: { strategy: 'jwt' },
   providers: [
     GitHub({
       clientId: process.env.GITHUB_ID ?? '',
@@ -34,9 +37,18 @@ export const authOptions: NextAuthOptions = {
     signIn: '/login',
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user && user) {
-        session.user.id = user.id
+    async jwt({ token, user }) {
+      // On first sign-in `user` is the row returned by the adapter and
+      // contains its database id. Persist it onto the token so we can read
+      // it back in the session callback.
+      if (user) {
+        token.uid = user.id
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user && token?.uid) {
+        session.user.id = token.uid as string
       }
       return session
     },
