@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { Project, RuleSection, SECTION_TYPE_META, SECTION_PLACEHOLDERS } from '@/lib/types'
-import { updateSection, deleteSection, getApiKeyStatus } from '@/lib/storage'
+import { updateSection, deleteSection } from '@/lib/storage'
+import { generateRule, loadLlmStatus } from '@/lib/ai-client'
 import { syncFrontMatter } from '@/lib/mdc'
 
 interface Props {
@@ -23,7 +24,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
   const [form, setForm] = useState({ ...section })
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
+  const [aiReady, setAiReady] = useState<boolean | null>(null)
   const [aiBusy, setAiBusy] = useState<null | 'draft' | 'expand'>(null)
   const [aiError, setAiError] = useState<string | null>(null)
 
@@ -35,7 +36,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
   }, [section.id])
 
   useEffect(() => {
-    getApiKeyStatus().then((s) => setHasApiKey(s.hasKey)).catch(() => setHasApiKey(false))
+    loadLlmStatus().then((s) => setAiReady(s.ready)).catch(() => setAiReady(false))
   }, [])
 
   function set<K extends keyof RuleSection>(key: K, val: RuleSection[K]) {
@@ -91,28 +92,23 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
     setAiError(null)
     setAiBusy(mode)
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode,
-          projectName: project.name,
-          projectDescription: project.description,
+      const { content } = await generateRule({
+        mode,
+        project: {
+          name: project.name,
+          description: project.description,
           techStack: project.techStack,
-          existingContent: mode === 'expand' ? form.generatedContent : undefined,
-          section: {
-            name: form.name,
-            type: form.type,
-            globs: form.globs,
-            alwaysApply: form.alwaysApply,
-            description: form.description,
-            requirements: form.requirements,
-          },
-        }),
+        },
+        section: {
+          name: form.name,
+          type: form.type,
+          globs: form.globs,
+          alwaysApply: form.alwaysApply,
+          description: form.description,
+          requirements: form.requirements,
+        },
+        existingContent: mode === 'expand' ? form.generatedContent : undefined,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'AI request failed')
-      const content = data.content as string
       setForm((f) => ({ ...f, generatedContent: content }))
       await save({ generatedContent: content })
     } catch (err) {
@@ -124,7 +120,7 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
 
   const placeholder = SECTION_PLACEHOLDERS[form.type]
   const hasContent = !!form.generatedContent.trim()
-  const aiAvailable = hasApiKey === true
+  const aiAvailable = aiReady === true
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -266,8 +262,8 @@ export default function SectionEditor({ section, project, onUpdate, onDelete }: 
         <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>AI assist</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
           {aiAvailable
-            ? 'Optional — drafts or expands the content above using Claude.'
-            : 'Optional — add an Anthropic API key in Settings to enable.'}
+            ? 'Optional — drafts or expands the content above using your configured LLM.'
+            : 'Optional — configure an LLM provider in Settings to enable (Anthropic or local Ollama).'}
         </span>
         <div style={{ flex: 1 }} />
         <button

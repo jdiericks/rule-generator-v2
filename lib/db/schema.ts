@@ -73,6 +73,11 @@ export const userSettings = pgTable('user_settings', {
   anthropicKeyIv: text('anthropic_key_iv'),
   anthropicKeyTag: text('anthropic_key_tag'),
   anthropicKeyHint: text('anthropic_key_hint'),
+  // LLM provider selection — 'anthropic' (cloud Claude) or 'ollama'
+  // (local model the user's browser talks to directly).
+  llmProvider: text('llm_provider').notNull().default('anthropic'),
+  ollamaBaseUrl: text('ollama_base_url'),
+  ollamaModel: text('ollama_model'),
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .notNull()
     .$defaultFn(() => new Date()),
