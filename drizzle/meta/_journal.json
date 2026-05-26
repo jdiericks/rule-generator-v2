@@ -29,6 +29,13 @@
       "when": 1779805983873,
       "tag": "0003_brown_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779807179020,
+      "tag": "0004_fuzzy_black_knight",
+      "breakpoints": true
     }
   ]
 }
