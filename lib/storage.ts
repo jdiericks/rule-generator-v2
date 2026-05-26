@@ -235,3 +235,29 @@ export async function updateTemplate(id: string, input: Partial<TemplateInput>):
 export async function deleteTemplate(id: string): Promise<void> {
   await http(`/api/templates/${id}`, { method: 'DELETE' })
 }
+
+// --- LLM provider settings ---
+export type LlmProvider = 'anthropic' | 'ollama'
+
+export interface LlmSettings {
+  provider: LlmProvider
+  ollamaBaseUrl: string | null
+  ollamaModel: string | null
+  hasAnthropicKey: boolean
+  anthropicKeyHint: string | null
+}
+
+export async function getLlmSettings(): Promise<LlmSettings> {
+  return http<LlmSettings>('/api/settings/llm')
+}
+
+export async function updateLlmSettings(input: {
+  provider?: LlmProvider
+  ollamaBaseUrl?: string | null
+  ollamaModel?: string | null
+}): Promise<{ ok: true; provider: LlmProvider; ollamaBaseUrl: string | null; ollamaModel: string | null }> {
+  return http('/api/settings/llm', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}

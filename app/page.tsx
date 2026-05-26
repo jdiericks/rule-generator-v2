@@ -7,13 +7,12 @@ import {
   loadProjects,
   createProject,
   deleteProject,
-  getApiKeyStatus,
-  saveApiKey,
-  clearApiKey,
-  ApiKeyStatus,
+  getLlmSettings,
+  LlmSettings,
 } from '@/lib/storage'
 import { TECH_OPTIONS } from '@/lib/types'
 import TemplatesModal from '@/components/TemplatesModal'
+import SettingsModal from '@/components/SettingsModal'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -23,21 +22,19 @@ export default function DashboardPage() {
   const [showNew, setShowNew] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [apiKey, setApiKeyState] = useState('')
-  const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>({ hasKey: false, hint: null })
+  const [llm, setLlm] = useState<LlmSettings | null>(null)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newStack, setNewStack] = useState<string[]>([])
-  const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     (async () => {
       try {
-        const [ps, ks] = await Promise.all([loadProjects(), getApiKeyStatus()])
+        const [ps, ks] = await Promise.all([loadProjects(), getLlmSettings()])
         setProjects(ps)
-        setApiKeyStatus(ks)
+        setLlm(ks)
       } catch (e) {
         setErr(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -71,27 +68,6 @@ export default function DashboardPage() {
     if (!confirm('Delete this project and all its sections?')) return
     await deleteProject(id)
     refresh()
-  }
-
-  async function saveKey() {
-    if (!apiKey.trim()) return
-    setSaving(true)
-    try {
-      const res = await saveApiKey(apiKey.trim())
-      setApiKeyStatus({ hasKey: true, hint: res.hint })
-      setApiKeyState('')
-      setShowSettings(false)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to save API key')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function removeKey() {
-    if (!confirm('Remove your stored Anthropic API key?')) return
-    await clearApiKey()
-    setApiKeyStatus({ hasKey: false, hint: null })
   }
 
   function toggleTech(t: string) {
@@ -179,12 +155,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {!apiKeyStatus.hasKey && !loading && (
+      {llm && !loading && llm.provider === 'anthropic' && !llm.hasAnthropicKey && !llm.ollamaBaseUrl && (
         <div style={{ background: 'var(--bg1)', borderBottom: '1px solid var(--border)', padding: '8px 1.5rem', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-            AI drafting is optional. Add an Anthropic API key in{' '}
+            AI drafting is optional. Configure an LLM in{' '}
             <button onClick={() => setShowSettings(true)} style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 12 }}>Settings</button>
-            {' '}if you want Claude to help draft or expand rule content.
+            {' '}— Anthropic Claude or a local Ollama model.
           </span>
         </div>
       )}
@@ -283,50 +259,12 @@ export default function DashboardPage() {
       )}
 
       {showSettings && (
-        <div data-mobile-modal-overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowSettings(false)}>
-          <div data-mobile-modal-full="true" className="fade-in" style={{ background: 'var(--bg1)', border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '100%', maxWidth: 460, overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <span style={{ fontWeight: 500 }}>Settings</span>
-              <button className="btn-ghost" onClick={() => setShowSettings(false)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <p className="label" style={{ marginBottom: 6 }}>Anthropic API Key</p>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKeyState(e.target.value)}
-                  placeholder={apiKeyStatus.hasKey ? 'Enter new key to replace' : 'sk-ant-...'}
-                  style={{ fontFamily: 'var(--mono)', fontSize: 12 }}
-                  autoFocus
-                />
-                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5, lineHeight: 1.5 }}>
-                  Stored encrypted on the server, scoped to your account. Used only when calling{' '}
-                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Anthropic →</a>
-                </p>
-                {apiKeyStatus.hasKey && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                    <p style={{ fontSize: 12, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
-                      ✓ Stored: {apiKeyStatus.hint}
-                    </p>
-                    <button className="btn btn-ghost" style={{ fontSize: 11, color: 'var(--red)' }} onClick={removeKey}>
-                      Remove key
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Close</button>
-                <button className="btn btn-accent" onClick={saveKey} disabled={!apiKey.trim() || saving}>
-                  {saving ? 'Saving…' : 'Save key'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onChanged={async () => {
+            try { setLlm(await getLlmSettings()) } catch {}
+          }}
+        />
       )}
     </div>
   )
