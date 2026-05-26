@@ -3,6 +3,8 @@ import { and, eq, asc } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { projects, sections, skills, projectGithubLinks } from '@/lib/db/schema'
 import { skillFilePath, type SkillFormat } from '@/lib/skills'
+import { ruleFilePath } from '@/lib/rule-paths'
+import type { RuleFormat } from '@/lib/types'
 import { requireUserId, badRequest, notFound, serverError } from '@/lib/api-utils'
 import { getOctokit } from '@/lib/github'
 
@@ -46,19 +48,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .orderBy(asc(skills.order)),
     ])
 
-    const format = (project.skillFormat as SkillFormat) ?? 'cursor'
+    const skillFmt = (project.skillFormat as SkillFormat) ?? 'cursor'
+    const ruleFmt = (project.ruleFormat as RuleFormat) ?? 'cursor'
 
     const ruleFiles = sectionRows
       .filter((s) => s.generatedContent && s.generatedContent.trim())
       .map((s) => ({
-        path: `${link.rulesPath}/${s.filename || `${kebab(s.name)}.mdc`}`,
+        path: ruleFilePath(ruleFmt, s.name, s.filename),
         content: s.generatedContent,
       }))
 
     const skillFiles = skillRows
       .filter((s) => s.body && s.body.trim())
       .map((s) => ({
-        path: skillFilePath(format, s.name),
+        path: skillFilePath(skillFmt, s.name),
         content: s.body,
       }))
 

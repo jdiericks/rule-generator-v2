@@ -21,6 +21,7 @@ export interface Skill {
 }
 
 export type SkillFormat = 'cursor' | 'opencode'
+export type RuleFormat = 'cursor' | 'opencode'
 
 export interface Project {
   id: string
@@ -29,6 +30,7 @@ export interface Project {
   techStack: string[]
   sections: RuleSection[]
   skills: Skill[]
+  ruleFormat: RuleFormat
   skillFormat: SkillFormat
   createdAt: string
   updatedAt: string

@@ -4,7 +4,7 @@ import { db } from '@/lib/db/client'
 import { projects, sections, skills } from '@/lib/db/schema'
 import { requireUserId, badRequest, serverError } from '@/lib/api-utils'
 import { serializeSection, serializeSkill } from '@/lib/db/serialize'
-import type { SkillFormat } from '@/lib/types'
+import type { RuleFormat, SkillFormat } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -44,6 +44,7 @@ export async function GET() {
       name: p.name,
       description: p.description,
       techStack: p.techStack ?? [],
+      ruleFormat: (p.ruleFormat as RuleFormat) ?? 'cursor',
       skillFormat: (p.skillFormat as SkillFormat) ?? 'cursor',
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUserId()
   if (auth instanceof NextResponse) return auth
 
-  let body: { name?: string; description?: string; techStack?: string[]; skillFormat?: string }
+  let body: { name?: string; description?: string; techStack?: string[]; ruleFormat?: string; skillFormat?: string }
   try {
     body = await req.json()
   } catch {
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
   if (!name) return badRequest('Project name is required')
 
   const skillFormat: SkillFormat = body.skillFormat === 'opencode' ? 'opencode' : 'cursor'
+  const ruleFormat: RuleFormat = body.ruleFormat === 'opencode' ? 'opencode' : 'cursor'
 
   try {
     const [row] = await db
@@ -84,6 +86,7 @@ export async function POST(req: NextRequest) {
         name,
         description: body.description?.trim() ?? '',
         techStack: body.techStack ?? [],
+        ruleFormat,
         skillFormat,
       })
       .returning()
@@ -94,6 +97,7 @@ export async function POST(req: NextRequest) {
         name: row.name,
         description: row.description,
         techStack: row.techStack ?? [],
+        ruleFormat: (row.ruleFormat as RuleFormat) ?? 'cursor',
         skillFormat: (row.skillFormat as SkillFormat) ?? 'cursor',
         sections: [],
         skills: [],
