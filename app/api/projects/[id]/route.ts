@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, asc } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { projects, sections } from '@/lib/db/schema'
+import { projects, sections, skills } from '@/lib/db/schema'
 import { requireUserId, badRequest, notFound, serverError } from '@/lib/api-utils'
-import { serializeSection } from '@/lib/db/serialize'
+import { serializeSection, serializeSkill } from '@/lib/db/serialize'
+import type { SkillFormat } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -24,11 +25,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const project = await loadOwned(auth.userId, params.id)
     if (!project) return notFound('Project not found')
 
-    const secRows = await db
-      .select()
-      .from(sections)
-      .where(eq(sections.projectId, project.id))
-      .orderBy(asc(sections.order))
+    const [secRows, skillRows] = await Promise.all([
+      db
+        .select()
+        .from(sections)
+        .where(eq(sections.projectId, project.id))
+        .orderBy(asc(sections.order)),
+      db
+        .select()
+        .from(skills)
+        .where(eq(skills.projectId, project.id))
+        .orderBy(asc(skills.order)),
+    ])
 
     return NextResponse.json({
       project: {
@@ -36,7 +44,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         name: project.name,
         description: project.description,
         techStack: project.techStack ?? [],
+        skillFormat: (project.skillFormat as SkillFormat) ?? 'cursor',
         sections: secRows.map(serializeSection),
+        skills: skillRows.map(serializeSkill),
         createdAt: project.createdAt.toISOString(),
         updatedAt: project.updatedAt.toISOString(),
       },
@@ -50,7 +60,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const auth = await requireUserId()
   if (auth instanceof NextResponse) return auth
 
-  let body: { name?: string; description?: string; techStack?: string[] }
+  let body: { name?: string; description?: string; techStack?: string[]; skillFormat?: string }
   try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
 
   try {
@@ -61,6 +71,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (typeof body.name === 'string') updates.name = body.name.trim()
     if (typeof body.description === 'string') updates.description = body.description
     if (Array.isArray(body.techStack)) updates.techStack = body.techStack
+    if (typeof body.skillFormat === 'string') {
+      updates.skillFormat = body.skillFormat === 'opencode' ? 'opencode' : 'cursor'
+    }
 
     const [row] = await db
       .update(projects)
@@ -74,6 +87,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         name: row.name,
         description: row.description,
         techStack: row.techStack ?? [],
+        skillFormat: (row.skillFormat as SkillFormat) ?? 'cursor',
         updatedAt: row.updatedAt.toISOString(),
         createdAt: row.createdAt.toISOString(),
       },

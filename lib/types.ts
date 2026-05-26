@@ -11,12 +11,25 @@ export interface RuleSection {
   order: number
 }
 
+export interface Skill {
+  id: string
+  name: string
+  description: string
+  body: string
+  allowedTools: string[]
+  order: number
+}
+
+export type SkillFormat = 'cursor' | 'opencode'
+
 export interface Project {
   id: string
   name: string
   description: string
   techStack: string[]
   sections: RuleSection[]
+  skills: Skill[]
+  skillFormat: SkillFormat
   createdAt: string
   updatedAt: string
 }

@@ -88,6 +88,9 @@ export const projects = pgTable(
     name: text('name').notNull(),
     description: text('description').notNull().default(''),
     techStack: jsonb('tech_stack').$type<string[]>().notNull().default([]),
+    // Output format used when writing skill files (and, in future,
+    // possibly rule files too). Defaults to Cursor conventions.
+    skillFormat: text('skill_format').notNull().default('cursor'),
     createdAt: timestamp('created_at', { mode: 'date' })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -152,6 +155,24 @@ export const userTemplates = pgTable('user_templates', {
   category: text('category').notNull().default('custom'),
   techTags: jsonb('tech_tags').$type<string[]>().notNull().default([]),
   sections: jsonb('sections').$type<TemplateSectionData[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
+export const skills = pgTable('skills', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  body: text('body').notNull().default(''),
+  allowedTools: jsonb('allowed_tools').$type<string[]>().notNull().default([]),
+  order: integer('order').notNull().default(0),
   createdAt: timestamp('created_at', { mode: 'date' })
     .notNull()
     .$defaultFn(() => new Date()),

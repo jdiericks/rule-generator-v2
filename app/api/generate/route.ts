@@ -2,25 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireUserId, badRequest, serverError } from '@/lib/api-utils'
 import { getStoredAnthropicKey } from '@/lib/anthropic-key'
+import {
+  SYSTEM_PROMPTS,
+  buildRuleDraftPrompt,
+  buildRuleExpandPrompt,
+  buildSkillDraftPrompt,
+  buildSkillExpandPrompt,
+  type RuleSectionPrompt,
+  type SkillPrompt,
+} from '@/lib/prompts'
 
 export const runtime = 'nodejs'
 
 type Mode = 'draft' | 'expand'
+type Kind = 'rule' | 'skill'
 
 interface GenerateBody {
+  kind?: Kind
   mode?: Mode
   projectName?: string
   projectDescription?: string
   techStack?: string[]
   existingContent?: string
-  section?: {
-    name: string
-    type: string
-    globs: string
-    alwaysApply: boolean
-    description: string
-    requirements: string
-  }
+  notes?: string
+  section?: RuleSectionPrompt
+  skill?: SkillPrompt
 }
 
 export async function POST(req: NextRequest) {
@@ -41,90 +47,41 @@ export async function POST(req: NextRequest) {
   let body: GenerateBody
   try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
 
-  const { mode = 'draft', projectName, projectDescription, techStack, section, existingContent } = body
-  if (!section) return badRequest('Missing section data')
+  const { kind = 'rule', mode = 'draft', projectName, projectDescription, techStack, existingContent, notes } = body
   if (mode === 'expand' && !existingContent?.trim()) {
     return badRequest('`expand` mode requires `existingContent`')
   }
 
-  const client = new Anthropic({ apiKey })
+  const project = { projectName, projectDescription, techStack }
+  let system: string
+  let user: string
 
-  const systemPrompt = `You are an expert in Cursor AI rules (.mdc files) and software engineering best practices.
-Generate high-quality, specific, and opinionated .mdc rule files.
-
-MDC format:
----
-description: One-line description of what this rule enforces
-globs: comma-separated glob patterns (leave empty string if alwaysApply is true and no specific files)
-alwaysApply: true or false
----
-
-# Rule Title
-
-## Section
-
-Content with actionable rules...
-
-Rules for good MDC files:
-- Be specific and opinionated — vague rules are useless to Cursor
-- Include concrete code examples in fenced code blocks where helpful
-- Cover the "why" briefly for non-obvious rules
-- Use nested bullet points for related sub-rules
-- Tailor everything precisely to the tech stack provided
-- Output ONLY the raw MDC file content starting with ---
-- No preamble, no explanation, just the MDC`
-
-  const projectBlock = `PROJECT:
-  Name: ${projectName || 'My Project'}
-  Description: ${projectDescription || 'A software project'}
-  Tech Stack: ${techStack?.join(', ') || 'Not specified'}
-
-RULE SECTION:
-  Name: ${section.name}
-  Type: ${section.type}
-  Globs: ${section.globs || '(not specified — applies broadly)'}
-  Always Apply: ${section.alwaysApply}
-  Purpose: ${section.description || 'Not specified'}`
-
-  const userPrompt =
-    mode === 'expand'
-      ? `Expand and refine the existing Cursor .mdc rule file below.
-
-${projectBlock}
-
-AUTHOR NOTES (optional priorities, requirements, or things to emphasize):
-${section.requirements || '(none — use your judgement to expand thoroughly)'}
-
-EXISTING .mdc CONTENT:
-"""
-${existingContent}
-"""
-
-Rewrite the file so it:
-- Preserves every intent and rule already present
-- Fills in concrete examples, edge cases, and rationale where it would help
-- Tightens vague language into specific, enforceable rules
-- Keeps the MDC frontmatter consistent with the section's globs / alwaysApply
-
-Output the complete MDC file starting with ---. No preamble.`
-      : `Generate a .mdc Cursor rules file.
-
-${projectBlock}
-
-DEVELOPER REQUIREMENTS:
-${section.requirements || 'Apply industry best practices for this rule type.'}
-
-Output the complete MDC file starting with ---`
+  if (kind === 'skill') {
+    if (!body.skill) return badRequest('Missing `skill` data')
+    system = SYSTEM_PROMPTS.skill
+    user =
+      mode === 'expand'
+        ? buildSkillExpandPrompt(project, body.skill, existingContent!, notes)
+        : buildSkillDraftPrompt(project, body.skill, notes)
+  } else {
+    if (!body.section) return badRequest('Missing `section` data')
+    system = SYSTEM_PROMPTS.rule
+    user =
+      mode === 'expand'
+        ? buildRuleExpandPrompt(project, body.section, existingContent!)
+        : buildRuleDraftPrompt(project, body.section)
+  }
 
   try {
+    const client = new Anthropic({ apiKey })
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      max_tokens: 1800,
+      system,
+      messages: [{ role: 'user', content: user }],
     })
     const content = (message.content[0] as { text: string }).text
-    return NextResponse.json({ content, mode })
+    return NextResponse.json({ content, mode, kind })
   } catch (err) {
     return serverError(err)
   }

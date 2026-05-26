@@ -15,6 +15,13 @@
       "when": 1779650271070,
       "tag": "0001_clammy_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779765127926,
+      "tag": "0002_regular_rhino",
+      "breakpoints": true
     }
   ]
 }
