@@ -1,5 +1,5 @@
 'use client'
-import { Project, RuleSection, RuleTemplate, SectionType } from './types'
+import { Project, RuleSection, RuleTemplate, SectionType, Skill, SkillFormat } from './types'
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -234,6 +234,43 @@ export async function updateTemplate(id: string, input: Partial<TemplateInput>):
 
 export async function deleteTemplate(id: string): Promise<void> {
   await http(`/api/templates/${id}`, { method: 'DELETE' })
+}
+
+// --- Skills ---
+
+export async function addSkill(
+  projectId: string,
+  data: { name: string; description?: string; allowedTools?: string[]; body?: string; order?: number }
+): Promise<Skill> {
+  const res = await http<{ skill: Skill }>(`/api/projects/${projectId}/skills`, {
+    method: 'POST',
+    body: JSON.stringify({ skill: data }),
+  })
+  return res.skill
+}
+
+export async function updateSkill(
+  projectId: string,
+  skillId: string,
+  updates: Partial<Skill>
+): Promise<boolean> {
+  await http(`/api/projects/${projectId}/skills/${skillId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  return true
+}
+
+export async function deleteSkill(projectId: string, skillId: string): Promise<boolean> {
+  await http(`/api/projects/${projectId}/skills/${skillId}`, { method: 'DELETE' })
+  return true
+}
+
+export async function setSkillFormat(projectId: string, skillFormat: SkillFormat): Promise<void> {
+  await http(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ skillFormat }),
+  })
 }
 
 // --- LLM provider settings ---

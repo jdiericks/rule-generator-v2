@@ -3,11 +3,16 @@ import { useEffect, useState } from 'react'
 import { Project, RuleSection } from '@/lib/types'
 import { updateSection } from '@/lib/storage'
 import { generateRule, loadLlmStatus } from '@/lib/ai-client'
+import { skillFilePath } from '@/lib/skills'
 
-interface RuleFile {
-  sectionId: string
+interface OutputFile {
+  id: string
+  kind: 'rule' | 'skill'
   name: string
+  /** Basename (e.g. `code-style.mdc` or `SKILL.md`) */
   filename: string
+  /** Full repo-relative path used for zip + GitHub push */
+  path: string
   content: string
 }
 
@@ -15,11 +20,14 @@ function kebab(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function fileFor(s: RuleSection): RuleFile {
+function ruleFileFor(s: RuleSection): OutputFile {
+  const filename = s.filename || `${kebab(s.name)}.mdc`
   return {
-    sectionId: s.id,
+    id: s.id,
+    kind: 'rule',
     name: s.name,
-    filename: s.filename || `${kebab(s.name)}.mdc`,
+    filename,
+    path: `.cursor/rules/${filename}`,
     content: s.generatedContent,
   }
 }
@@ -41,15 +49,30 @@ export default function FilesPanel({ project, onUpdate }: Props) {
     loadLlmStatus().then((s) => setAiReady(s.ready)).catch(() => setAiReady(false))
   }, [])
 
-  const files: RuleFile[] = project.sections
+  const ruleFiles: OutputFile[] = project.sections
     .filter((s) => s.generatedContent.trim())
-    .map(fileFor)
+    .map(ruleFileFor)
+  const skillFiles: OutputFile[] = project.skills
+    .filter((s) => s.body.trim())
+    .map((s) => {
+      const path = skillFilePath(project.skillFormat, s.name)
+      const filename = path.split('/').pop() || 'SKILL.md'
+      return {
+        id: s.id,
+        kind: 'skill',
+        name: s.name,
+        filename,
+        path,
+        content: s.body,
+      }
+    })
+  const files: OutputFile[] = [...ruleFiles, ...skillFiles]
 
   useEffect(() => {
-    if (!activeId && files.length > 0) setActiveId(files[0].sectionId)
+    if (!activeId && files.length > 0) setActiveId(files[0].id)
   }, [files.length, activeId])
 
-  const activeFile = files.find((f) => f.sectionId === activeId)
+  const activeFile = files.find((f) => f.id === activeId)
 
   async function runAi(section: RuleSection, mode: 'draft' | 'expand') {
     if (!aiReady) {
@@ -58,7 +81,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
     }
     setAiBusy(true)
     setCurrentIdx(project.sections.findIndex((s) => s.id === section.id))
-    setErrors((e) => { const { [section.id]: _, ...rest } = e; return rest })
+    setErrors((e) => { const { [section.id]: _omit, ...rest } = e; return rest })
     try {
       const { content } = await generateRule({
         mode,
@@ -101,13 +124,13 @@ export default function FilesPanel({ project, onUpdate }: Props) {
     }
   }
 
-  function copyFile(f: RuleFile) {
+  function copyFile(f: OutputFile) {
     navigator.clipboard.writeText(f.content)
-    setCopied(f.sectionId)
+    setCopied(f.id)
     setTimeout(() => setCopied(null), 2000)
   }
 
-  function downloadFile(f: RuleFile) {
+  function downloadFile(f: OutputFile) {
     const blob = new Blob([f.content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -118,20 +141,19 @@ export default function FilesPanel({ project, onUpdate }: Props) {
   async function downloadZip() {
     const JSZip = (await import('jszip')).default
     const zip = new JSZip()
-    const folder = zip.folder('.cursor/rules')!
-    files.forEach((f) => folder.file(f.filename, f.content))
+    files.forEach((f) => zip.file(f.path, f.content))
     const blob = await zip.generateAsync({ type: 'blob' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `${kebab(project.name || 'cursor-rules')}.zip`; a.click()
+    a.href = url; a.download = `${kebab(project.name || 'ai-rules')}.zip`; a.click()
     URL.revokeObjectURL(url)
   }
 
-  if (project.sections.length === 0) {
+  if (project.sections.length === 0 && project.skills.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text3)' }}>
         <p style={{ fontFamily: 'var(--mono)', fontSize: 28, marginBottom: 12, opacity: 0.3 }}>.mdc</p>
-        <p style={{ fontSize: 13 }}>Add sections in the editor to start writing rule files</p>
+        <p style={{ fontSize: 13 }}>Add rule sections or skills in the editor to start writing files</p>
       </div>
     )
   }
@@ -153,7 +175,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
             onClick={draftAll}
             disabled={aiBusy}
             style={{ fontSize: 12 }}
-            title="Use AI to draft .mdc content for every empty section"
+            title="Use AI to draft .mdc content for every empty rule section"
           >
             {aiBusy && currentIdx >= 0 ? (
               <>
@@ -176,8 +198,11 @@ export default function FilesPanel({ project, onUpdate }: Props) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {project.sections.length > 0 && (
+          <p className="label" style={{ marginBottom: 0 }}>Rule sections</p>
+        )}
         {project.sections.map((section, i) => {
-          const file = section.generatedContent.trim() ? fileFor(section) : null
+          const file = section.generatedContent.trim() ? ruleFileFor(section) : null
           const isBusy = aiBusy && currentIdx === i
           const err = errors[section.id]
           return (
@@ -195,7 +220,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
               <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{section.name}</span>
               <span className="type-badge">{section.type}</span>
               {file ? (
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{file.filename}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{file.path}</span>
               ) : (
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>empty</span>
               )}
@@ -215,17 +240,43 @@ export default function FilesPanel({ project, onUpdate }: Props) {
             </div>
           )
         })}
+
+        {project.skills.length > 0 && (
+          <p className="label" style={{ marginTop: 8, marginBottom: 0 }}>Skills</p>
+        )}
+        {project.skills.map((s) => {
+          const file = s.body.trim()
+            ? skillFiles.find((f) => f.id === s.id) ?? null
+            : null
+          return (
+            <div
+              key={s.id}
+              data-mobile-wrap="true"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: file ? 'pointer' : 'default', transition: 'border-color 0.1s', borderColor: activeId === s.id && file ? 'var(--border2)' : 'var(--border)' }}
+              onClick={() => file && setActiveId(s.id)}
+            >
+              <div style={{ background: file ? 'var(--green)' : 'var(--bg4)', width: 7, height: 7, borderRadius: '50%' }} />
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{s.name}</span>
+              <span className="type-badge">skill</span>
+              {file ? (
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{file.path}</span>
+              ) : (
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>empty</span>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {activeFile && (
         <div className="fade-in" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)' }}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>
-              .cursor/rules/{activeFile.filename}
+              {activeFile.path}
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="btn" onClick={() => copyFile(activeFile)} style={{ fontSize: 11, padding: '4px 8px' }}>
-                {copied === activeFile.sectionId ? (
+                {copied === activeFile.id ? (
                   <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied</>
                 ) : (
                   <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</>

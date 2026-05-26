@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { projects, sections } from '@/lib/db/schema'
+import { projects, sections, skills } from '@/lib/db/schema'
 import { requireUserId, badRequest, serverError } from '@/lib/api-utils'
-import { serializeSection } from '@/lib/db/serialize'
+import { serializeSection, serializeSkill } from '@/lib/db/serialize'
+import type { SkillFormat } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -20,14 +21,22 @@ export async function GET() {
 
     const projectIds = rows.map((p) => p.id)
     const sectionRows = projectIds.length
-      ? await db.select().from(sections)
+      ? await db.select().from(sections).where(inArray(sections.projectId, projectIds))
+      : []
+    const skillRows = projectIds.length
+      ? await db.select().from(skills).where(inArray(skills.projectId, projectIds))
       : []
     const sectionsByProject = new Map<string, typeof sectionRows>()
     for (const s of sectionRows) {
-      if (!projectIds.includes(s.projectId)) continue
       const list = sectionsByProject.get(s.projectId) ?? []
       list.push(s)
       sectionsByProject.set(s.projectId, list)
+    }
+    const skillsByProject = new Map<string, typeof skillRows>()
+    for (const s of skillRows) {
+      const list = skillsByProject.get(s.projectId) ?? []
+      list.push(s)
+      skillsByProject.set(s.projectId, list)
     }
 
     const out = rows.map((p) => ({
@@ -35,11 +44,15 @@ export async function GET() {
       name: p.name,
       description: p.description,
       techStack: p.techStack ?? [],
+      skillFormat: (p.skillFormat as SkillFormat) ?? 'cursor',
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
       sections: (sectionsByProject.get(p.id) ?? [])
         .sort((a, b) => a.order - b.order)
         .map(serializeSection),
+      skills: (skillsByProject.get(p.id) ?? [])
+        .sort((a, b) => a.order - b.order)
+        .map(serializeSkill),
     }))
 
     return NextResponse.json({ projects: out })
@@ -52,7 +65,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUserId()
   if (auth instanceof NextResponse) return auth
 
-  let body: { name?: string; description?: string; techStack?: string[] }
+  let body: { name?: string; description?: string; techStack?: string[]; skillFormat?: string }
   try {
     body = await req.json()
   } catch {
@@ -60,6 +73,8 @@ export async function POST(req: NextRequest) {
   }
   const name = body.name?.trim()
   if (!name) return badRequest('Project name is required')
+
+  const skillFormat: SkillFormat = body.skillFormat === 'opencode' ? 'opencode' : 'cursor'
 
   try {
     const [row] = await db
@@ -69,6 +84,7 @@ export async function POST(req: NextRequest) {
         name,
         description: body.description?.trim() ?? '',
         techStack: body.techStack ?? [],
+        skillFormat,
       })
       .returning()
 
@@ -78,7 +94,9 @@ export async function POST(req: NextRequest) {
         name: row.name,
         description: row.description,
         techStack: row.techStack ?? [],
+        skillFormat: (row.skillFormat as SkillFormat) ?? 'cursor',
         sections: [],
+        skills: [],
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       },

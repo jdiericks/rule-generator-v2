@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, asc } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { projects, sections, projectGithubLinks } from '@/lib/db/schema'
+import { projects, sections, skills, projectGithubLinks } from '@/lib/db/schema'
+import { skillFilePath, type SkillFormat } from '@/lib/skills'
 import { requireUserId, badRequest, notFound, serverError } from '@/lib/api-utils'
 import { getOctokit } from '@/lib/github'
 
@@ -32,21 +33,39 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .where(eq(projectGithubLinks.projectId, project.id))
     if (!link) return badRequest('No GitHub repo linked to this project')
 
-    const sectionRows = await db
-      .select()
-      .from(sections)
-      .where(eq(sections.projectId, project.id))
-      .orderBy(asc(sections.order))
+    const [sectionRows, skillRows] = await Promise.all([
+      db
+        .select()
+        .from(sections)
+        .where(eq(sections.projectId, project.id))
+        .orderBy(asc(sections.order)),
+      db
+        .select()
+        .from(skills)
+        .where(eq(skills.projectId, project.id))
+        .orderBy(asc(skills.order)),
+    ])
 
-    const filesToWrite = sectionRows
+    const format = (project.skillFormat as SkillFormat) ?? 'cursor'
+
+    const ruleFiles = sectionRows
       .filter((s) => s.generatedContent && s.generatedContent.trim())
       .map((s) => ({
         path: `${link.rulesPath}/${s.filename || `${kebab(s.name)}.mdc`}`,
         content: s.generatedContent,
       }))
 
+    const skillFiles = skillRows
+      .filter((s) => s.body && s.body.trim())
+      .map((s) => ({
+        path: skillFilePath(format, s.name),
+        content: s.body,
+      }))
+
+    const filesToWrite = [...ruleFiles, ...skillFiles]
+
     if (filesToWrite.length === 0) {
-      return badRequest('No generated rule files to push. Generate sections first.')
+      return badRequest('Nothing to push yet — add content to a rule or skill first.')
     }
 
     const octokit = await getOctokit(auth.userId)

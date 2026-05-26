@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Project, SECTION_TYPE_META, SectionType, TECH_OPTIONS } from '@/lib/types'
-import { getProject, addSection, updateProject, applyTemplateSections } from '@/lib/storage'
+import { Project, SECTION_TYPE_META, SectionType, SkillFormat, TECH_OPTIONS } from '@/lib/types'
+import { SKILL_FORMATS } from '@/lib/skills'
+import { getProject, addSection, addSkill, updateProject, applyTemplateSections, setSkillFormat } from '@/lib/storage'
 import { RuleTemplate } from '@/lib/types'
 import SectionEditor from '@/components/SectionEditor'
+import SkillEditor from '@/components/SkillEditor'
 import GeneratePanel from '@/components/GeneratePanel'
 import TemplatesModal from '@/components/TemplatesModal'
 import SaveAsTemplateModal from '@/components/SaveAsTemplateModal'
@@ -31,7 +33,9 @@ export default function ProjectPage() {
   const projectId = params.id as string
 
   const [project, setProject] = useState<Project | null>(null)
+  const [activeKind, setActiveKind] = useState<'rule' | 'skill'>('rule')
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+  const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('editor')
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
@@ -50,15 +54,20 @@ export default function ProjectPage() {
   useEffect(() => { refresh() }, [refresh])
 
   useEffect(() => {
-    if (project && !activeSectionId && project.sections.length > 0) {
+    if (!project) return
+    if (activeKind === 'rule' && !activeSectionId && project.sections.length > 0) {
       setActiveSectionId(project.sections[0].id)
     }
-  }, [project?.sections.length])
+    if (activeKind === 'skill' && !activeSkillId && project.skills.length > 0) {
+      setActiveSkillId(project.skills[0].id)
+    }
+  }, [project?.sections.length, project?.skills.length, activeKind])
 
   if (!project) return null
 
   const activeSection = project.sections.find(s => s.id === activeSectionId)
-  const generatedCount = project.sections.filter(s => s.generatedContent).length
+  const activeSkill = project.skills.find(s => s.id === activeSkillId)
+  const generatedCount = project.sections.filter(s => s.generatedContent).length + project.skills.filter(s => s.body.trim()).length
 
   async function handleAddSection(type: SectionType) {
     const meta = SECTION_TYPE_META.find(t => t.value === type)!
@@ -72,10 +81,31 @@ export default function ProjectPage() {
       order: project!.sections.length,
     })
     if (s) {
+      setActiveKind('rule')
       setActiveSectionId(s.id)
       setTab('editor')
     }
     setShowTypePicker(false)
+    refresh()
+  }
+
+  async function handleAddSkill() {
+    const s = await addSkill(projectId, {
+      name: 'New Skill',
+      description: '',
+      order: project!.skills.length,
+    })
+    if (s) {
+      setActiveKind('skill')
+      setActiveSkillId(s.id)
+      setTab('editor')
+    }
+    setShowTypePicker(false)
+    refresh()
+  }
+
+  async function handleSkillFormat(fmt: SkillFormat) {
+    await setSkillFormat(projectId, fmt)
     refresh()
   }
 
@@ -223,15 +253,15 @@ export default function ProjectPage() {
             {project.sections.map(s => (
               <button
                 key={s.id}
-                onClick={() => { setActiveSectionId(s.id); setTab('editor'); setSidebarOpen(false) }}
+                onClick={() => { setActiveKind('rule'); setActiveSectionId(s.id); setTab('editor'); setSidebarOpen(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px',
                   borderRadius: 'var(--radius)', marginBottom: 2, textAlign: 'left', fontSize: 12,
-                  background: activeSectionId === s.id && tab === 'editor' ? 'var(--bg3)' : 'transparent',
-                  color: activeSectionId === s.id && tab === 'editor' ? 'var(--text)' : 'var(--text2)',
-                  fontWeight: activeSectionId === s.id && tab === 'editor' ? 500 : 400,
+                  background: activeKind === 'rule' && activeSectionId === s.id && tab === 'editor' ? 'var(--bg3)' : 'transparent',
+                  color: activeKind === 'rule' && activeSectionId === s.id && tab === 'editor' ? 'var(--text)' : 'var(--text2)',
+                  fontWeight: activeKind === 'rule' && activeSectionId === s.id && tab === 'editor' ? 500 : 400,
                   border: '1px solid transparent',
-                  borderColor: activeSectionId === s.id && tab === 'editor' ? 'var(--border)' : 'transparent',
+                  borderColor: activeKind === 'rule' && activeSectionId === s.id && tab === 'editor' ? 'var(--border)' : 'transparent',
                 }}
               >
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)', width: 14, textAlign: 'center', flexShrink: 0 }}>
@@ -243,6 +273,49 @@ export default function ProjectPage() {
             ))}
           </div>
 
+          <div style={{ padding: '4px 8px 8px', borderTop: '1px solid var(--border)' }}>
+            <p className="label" style={{ padding: '6px 4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Skills</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)', textTransform: 'none', letterSpacing: 0 }}>
+                {project.skills.length}
+              </span>
+            </p>
+            {project.skills.length === 0 && (
+              <p style={{ fontSize: 12, color: 'var(--text3)', padding: '0 4px 4px', lineHeight: 1.5 }}>No skills yet.</p>
+            )}
+            {project.skills.map(s => (
+              <button
+                key={s.id}
+                onClick={() => { setActiveKind('skill'); setActiveSkillId(s.id); setTab('editor'); setSidebarOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px',
+                  borderRadius: 'var(--radius)', marginBottom: 2, textAlign: 'left', fontSize: 12,
+                  background: activeKind === 'skill' && activeSkillId === s.id && tab === 'editor' ? 'var(--bg3)' : 'transparent',
+                  color: activeKind === 'skill' && activeSkillId === s.id && tab === 'editor' ? 'var(--text)' : 'var(--text2)',
+                  fontWeight: activeKind === 'skill' && activeSkillId === s.id && tab === 'editor' ? 500 : 400,
+                  border: '1px solid transparent',
+                  borderColor: activeKind === 'skill' && activeSkillId === s.id && tab === 'editor' ? 'var(--border)' : 'transparent',
+                }}
+              >
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)', width: 14, textAlign: 'center', flexShrink: 0 }}>S</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                {s.body.trim() && <div className="dot green" style={{ width: 5, height: 5, flexShrink: 0 }} />}
+              </button>
+            ))}
+            <div style={{ padding: '6px 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Format</span>
+              <select
+                value={project.skillFormat}
+                onChange={(e) => handleSkillFormat(e.target.value as SkillFormat)}
+                style={{ fontSize: 11, padding: '3px 22px 3px 6px' }}
+              >
+                {SKILL_FORMATS.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div style={{ padding: '8px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
             <button
               className="btn"
@@ -250,10 +323,11 @@ export default function ProjectPage() {
               onClick={() => setShowTypePicker(!showTypePicker)}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-              Add section
+              Add
             </button>
             {showTypePicker && (
               <div className="fade-in" style={{ marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                <p style={{ padding: '6px 10px', fontSize: 10, fontWeight: 500, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: '1px solid var(--border)' }}>Rule section</p>
                 {SECTION_TYPE_META.map(t => (
                   <button
                     key={t.value}
@@ -270,6 +344,19 @@ export default function ProjectPage() {
                     {t.label}
                   </button>
                 ))}
+                <p style={{ padding: '6px 10px', fontSize: 10, fontWeight: 500, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: '1px solid var(--border)' }}>Skill</p>
+                <button
+                  onClick={handleAddSkill}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 10px',
+                    fontSize: 12, color: 'var(--text2)', textAlign: 'left', borderRadius: 0,
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text2)' }}
+                >
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)', width: 12, textAlign: 'center' }}>S</span>
+                  New skill
+                </button>
               </div>
             )}
           </div>
@@ -277,7 +364,23 @@ export default function ProjectPage() {
 
         <main style={{ flex: 1, overflowY: 'auto', padding: '1rem', minWidth: 0 }}>
           {tab === 'editor' ? (
-            activeSection ? (
+            activeKind === 'skill' ? (
+              activeSkill ? (
+                <SkillEditor
+                  key={activeSkill.id}
+                  skill={activeSkill}
+                  project={project}
+                  onUpdate={refresh}
+                  onDelete={() => { setActiveSkillId(null); refresh() }}
+                />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', gap: 12 }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 28, opacity: 0.2 }}>SKILL.md</span>
+                  <p style={{ fontSize: 13 }}>Select a skill to edit</p>
+                  <button className="btn" onClick={handleAddSkill} style={{ fontSize: 12 }}>Add skill</button>
+                </div>
+              )
+            ) : activeSection ? (
               <SectionEditor
                 key={activeSection.id}
                 section={activeSection}
@@ -288,9 +391,10 @@ export default function ProjectPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', gap: 12 }}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 36, opacity: 0.2 }}>.mdc</span>
-                <p style={{ fontSize: 13 }}>Select a section to edit</p>
+                <p style={{ fontSize: 13 }}>Select a section or skill to edit</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn" onClick={() => setShowTypePicker(true)} style={{ fontSize: 12 }}>Add section</button>
+                  <button className="btn" onClick={handleAddSkill} style={{ fontSize: 12 }}>Add skill</button>
                   <button className="btn btn-accent" onClick={() => setShowTemplates(true)} style={{ fontSize: 12 }}>Browse templates</button>
                 </div>
               </div>
@@ -298,9 +402,9 @@ export default function ProjectPage() {
           ) : tab === 'files' ? (
             <div>
               <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>Rule files</p>
+                <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>Files</p>
                 <p style={{ fontSize: 12, color: 'var(--text3)' }}>
-                  One <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> per section. Write them yourself, or use AI assistance from the editor. Files go in <span style={{ fontFamily: 'var(--mono)' }}>.cursor/rules/</span> in your repo.
+                  One <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> per rule section, plus a SKILL file per skill in the format selected for this project.
                 </p>
               </div>
               <GeneratePanel project={project} onUpdate={refresh} />
@@ -310,8 +414,7 @@ export default function ProjectPage() {
               <div style={{ marginBottom: '1.25rem' }}>
                 <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 4 }}>GitHub</p>
                 <p style={{ fontSize: 12, color: 'var(--text3)' }}>
-                  Link this project to a GitHub repository and commit generated{' '}
-                  <span style={{ fontFamily: 'var(--mono)' }}>.mdc</span> files directly.
+                  Link this project to a GitHub repository and commit generated rule + skill files directly.
                 </p>
               </div>
               <GithubPanel project={project} />
