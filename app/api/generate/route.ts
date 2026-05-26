@@ -3,13 +3,14 @@ import Anthropic from '@anthropic-ai/sdk'
 import { requireUserId, badRequest, serverError } from '@/lib/api-utils'
 import { getStoredAnthropicKey } from '@/lib/anthropic-key'
 import {
-  SYSTEM_PROMPTS,
-  buildRuleDraftPrompt,
-  buildRuleExpandPrompt,
+  RULE_GENERATION_SYSTEM_PROMPT,
+  SKILL_GENERATION_SYSTEM_PROMPT,
+  buildDraftPrompt,
+  buildExpandPrompt,
   buildSkillDraftPrompt,
   buildSkillExpandPrompt,
-  type RuleSectionPrompt,
-  type SkillPrompt,
+  type SectionPromptInput,
+  type SkillPromptInput,
 } from '@/lib/prompts'
 
 export const runtime = 'nodejs'
@@ -25,8 +26,8 @@ interface GenerateBody {
   techStack?: string[]
   existingContent?: string
   notes?: string
-  section?: RuleSectionPrompt
-  skill?: SkillPrompt
+  section?: SectionPromptInput
+  skill?: SkillPromptInput
 }
 
 export async function POST(req: NextRequest) {
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'Anthropic API key not configured. AI assistance is optional — add a key in Settings to use it.',
+          'Anthropic API key not configured. AI assistance is optional — add a key or switch to a local Ollama provider in Settings.',
       },
       { status: 412 }
     )
@@ -47,29 +48,37 @@ export async function POST(req: NextRequest) {
   let body: GenerateBody
   try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
 
-  const { kind = 'rule', mode = 'draft', projectName, projectDescription, techStack, existingContent, notes } = body
+  const {
+    kind = 'rule',
+    mode = 'draft',
+    projectName,
+    projectDescription,
+    techStack,
+    existingContent,
+    notes,
+  } = body
   if (mode === 'expand' && !existingContent?.trim()) {
     return badRequest('`expand` mode requires `existingContent`')
   }
 
   const project = { projectName, projectDescription, techStack }
   let system: string
-  let user: string
+  let userPrompt: string
 
   if (kind === 'skill') {
     if (!body.skill) return badRequest('Missing `skill` data')
-    system = SYSTEM_PROMPTS.skill
-    user =
+    system = SKILL_GENERATION_SYSTEM_PROMPT
+    userPrompt =
       mode === 'expand'
         ? buildSkillExpandPrompt(project, body.skill, existingContent!, notes)
         : buildSkillDraftPrompt(project, body.skill, notes)
   } else {
     if (!body.section) return badRequest('Missing `section` data')
-    system = SYSTEM_PROMPTS.rule
-    user =
+    system = RULE_GENERATION_SYSTEM_PROMPT
+    userPrompt =
       mode === 'expand'
-        ? buildRuleExpandPrompt(project, body.section, existingContent!)
-        : buildRuleDraftPrompt(project, body.section)
+        ? buildExpandPrompt(project, body.section, existingContent!)
+        : buildDraftPrompt(project, body.section)
   }
 
   try {
@@ -78,10 +87,10 @@ export async function POST(req: NextRequest) {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1800,
       system,
-      messages: [{ role: 'user', content: user }],
+      messages: [{ role: 'user', content: userPrompt }],
     })
     const content = (message.content[0] as { text: string }).text
-    return NextResponse.json({ content, mode, kind })
+    return NextResponse.json({ content, mode, kind, provider: 'anthropic' })
   } catch (err) {
     return serverError(err)
   }

@@ -1,8 +1,9 @@
-// Shared prompt construction for the AI assist. Currently used by the
-// server-side Anthropic path; the same helpers will be reused by any
-// future client-side providers so both produce comparable output.
+// Shared system + user prompt construction for the AI assist.
+// Consumed by both the server-side Anthropic path and the client-side
+// Ollama path so the two providers produce comparable output, plus the
+// rule + skill kinds both flow through here.
 
-const RULE_SYSTEM = `You are an expert in .mdc rule files (Cursor, Windsurf, and other compatible AI coding tools) and software engineering best practices.
+export const RULE_GENERATION_SYSTEM_PROMPT = `You are an expert in .mdc rule files (Cursor, Windsurf, and other compatible AI coding tools) and software engineering best practices.
 Generate high-quality, specific, and opinionated .mdc rule files.
 
 MDC format:
@@ -27,7 +28,7 @@ Rules for good MDC files:
 - Output ONLY the raw MDC file content starting with ---
 - No preamble, no explanation, just the MDC`
 
-const SKILL_SYSTEM = `You are an expert in AI coding-agent skills (Cursor, OpenCode, Claude Code, and compatible tools).
+export const SKILL_GENERATION_SYSTEM_PROMPT = `You are an expert in AI coding-agent skills (Cursor, OpenCode, Claude Code, and compatible tools).
 A skill is a markdown file describing a reusable capability the agent can read on demand.
 
 SKILL.md format:
@@ -54,22 +55,7 @@ Rules for good skill files:
 - Tailor everything to the project's tech stack
 - Output ONLY the raw markdown file starting with ---. No preamble, no explanation`
 
-export interface ProjectPromptInput {
-  projectName?: string
-  projectDescription?: string
-  techStack?: string[]
-}
-
-function projectHeader(p: ProjectPromptInput): string {
-  return `PROJECT:
-  Name: ${p.projectName || 'My Project'}
-  Description: ${p.projectDescription || 'A software project'}
-  Tech Stack: ${p.techStack?.join(', ') || 'Not specified'}`
-}
-
-// --- Rules --------------------------------------------------------------
-
-export interface RuleSectionPrompt {
+export interface SectionPromptInput {
   name: string
   type: string
   globs: string
@@ -78,17 +64,49 @@ export interface RuleSectionPrompt {
   requirements: string
 }
 
-export function buildRuleDraftPrompt(p: ProjectPromptInput, s: RuleSectionPrompt): string {
-  return `Generate a .mdc rule file.
+export interface ProjectPromptInput {
+  projectName?: string
+  projectDescription?: string
+  techStack?: string[]
+}
 
-${projectHeader(p)}
+export interface SkillPromptInput {
+  name: string
+  description: string
+  allowedTools: string[]
+}
 
-RULE SECTION:
+function projectBlock(p: ProjectPromptInput): string {
+  return `PROJECT:
+  Name: ${p.projectName || 'My Project'}
+  Description: ${p.projectDescription || 'A software project'}
+  Tech Stack: ${p.techStack?.join(', ') || 'Not specified'}`
+}
+
+function ruleSectionBlock(s: SectionPromptInput): string {
+  return `RULE SECTION:
   Name: ${s.name}
   Type: ${s.type}
   Globs: ${s.globs || '(not specified — applies broadly)'}
   Always Apply: ${s.alwaysApply}
-  Purpose: ${s.description || 'Not specified'}
+  Purpose: ${s.description || 'Not specified'}`
+}
+
+function skillBlock(s: SkillPromptInput): string {
+  return `SKILL:
+  Name: ${s.name}
+  Description: ${s.description || 'Not specified'}
+  Allowed Tools: ${s.allowedTools.length ? s.allowedTools.join(', ') : '(any)'}`
+}
+
+// --- Rules --------------------------------------------------------------
+
+export function buildDraftPrompt(p: ProjectPromptInput, s: SectionPromptInput): string {
+  return `Generate a .mdc rule file.
+
+${projectBlock(p)}
+
+${ruleSectionBlock(s)}
 
 DEVELOPER REQUIREMENTS:
 ${s.requirements || 'Apply industry best practices for this rule type.'}
@@ -96,60 +114,46 @@ ${s.requirements || 'Apply industry best practices for this rule type.'}
 Output the complete MDC file starting with ---`
 }
 
-export function buildRuleExpandPrompt(
+export function buildExpandPrompt(
   p: ProjectPromptInput,
-  s: RuleSectionPrompt,
-  existing: string
+  s: SectionPromptInput,
+  existingContent: string
 ): string {
   return `Expand and refine the existing .mdc rule file below.
 
-${projectHeader(p)}
+${projectBlock(p)}
 
-RULE SECTION:
-  Name: ${s.name}
-  Type: ${s.type}
-  Globs: ${s.globs || '(not specified — applies broadly)'}
-  Always Apply: ${s.alwaysApply}
-  Purpose: ${s.description || 'Not specified'}
+${ruleSectionBlock(s)}
 
-AUTHOR NOTES:
+AUTHOR NOTES (optional priorities, requirements, or things to emphasize):
 ${s.requirements || '(none — use your judgement to expand thoroughly)'}
 
 EXISTING .mdc CONTENT:
 """
-${existing}
+${existingContent}
 """
 
-Rewrite the file so it preserves every intent already present, fills in concrete examples + edge cases + rationale where it would help, tightens vague language into specific enforceable rules, and keeps the frontmatter consistent with the section's globs / alwaysApply.
+Rewrite the file so it:
+- Preserves every intent and rule already present
+- Fills in concrete examples, edge cases, and rationale where it would help
+- Tightens vague language into specific, enforceable rules
+- Keeps the MDC frontmatter consistent with the section's globs / alwaysApply
 
 Output the complete MDC file starting with ---. No preamble.`
 }
 
 // --- Skills -------------------------------------------------------------
 
-export interface SkillPrompt {
-  name: string
-  description: string
-  allowedTools: string[]
-}
-
-function skillHeader(s: SkillPrompt): string {
-  return `SKILL:
-  Name: ${s.name}
-  Description: ${s.description || 'Not specified'}
-  Allowed Tools: ${s.allowedTools.length ? s.allowedTools.join(', ') : '(any)'}`
-}
-
 export function buildSkillDraftPrompt(
   p: ProjectPromptInput,
-  s: SkillPrompt,
+  s: SkillPromptInput,
   notes?: string
 ): string {
   return `Generate a SKILL.md file for an AI coding agent.
 
-${projectHeader(p)}
+${projectBlock(p)}
 
-${skillHeader(s)}
+${skillBlock(s)}
 
 AUTHOR NOTES:
 ${notes || 'Use your judgement based on the skill name + description.'}
@@ -159,30 +163,25 @@ Output the complete markdown file starting with ---. No preamble.`
 
 export function buildSkillExpandPrompt(
   p: ProjectPromptInput,
-  s: SkillPrompt,
-  existing: string,
+  s: SkillPromptInput,
+  existingContent: string,
   notes?: string
 ): string {
   return `Expand and refine the existing SKILL.md file below.
 
-${projectHeader(p)}
+${projectBlock(p)}
 
-${skillHeader(s)}
+${skillBlock(s)}
 
 AUTHOR NOTES:
 ${notes || '(none — use your judgement to expand thoroughly)'}
 
 EXISTING SKILL.md:
 """
-${existing}
+${existingContent}
 """
 
 Rewrite the file so it preserves every existing instruction, adds concrete steps / examples / references where they help the agent succeed, and keeps the frontmatter consistent with the skill's name + description.
 
 Output the complete markdown file starting with ---. No preamble.`
-}
-
-export const SYSTEM_PROMPTS = {
-  rule: RULE_SYSTEM,
-  skill: SKILL_SYSTEM,
 }

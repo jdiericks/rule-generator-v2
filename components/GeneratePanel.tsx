@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Project, RuleSection } from '@/lib/types'
-import { getApiKeyStatus, updateSection } from '@/lib/storage'
+import { updateSection } from '@/lib/storage'
+import { generateRule, loadLlmStatus } from '@/lib/ai-client'
 import { skillFilePath } from '@/lib/skills'
 
 interface OutputFile {
@@ -42,10 +43,10 @@ export default function FilesPanel({ project, onUpdate }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
+  const [aiReady, setAiReady] = useState<boolean | null>(null)
 
   useEffect(() => {
-    getApiKeyStatus().then((s) => setHasApiKey(s.hasKey)).catch(() => setHasApiKey(false))
+    loadLlmStatus().then((s) => setAiReady(s.ready)).catch(() => setAiReady(false))
   }, [])
 
   const ruleFiles: OutputFile[] = project.sections
@@ -74,38 +75,33 @@ export default function FilesPanel({ project, onUpdate }: Props) {
   const activeFile = files.find((f) => f.id === activeId)
 
   async function runAi(section: RuleSection, mode: 'draft' | 'expand') {
-    if (!hasApiKey) {
-      alert('Add your Anthropic API key in Settings to use AI assistance.')
+    if (!aiReady) {
+      alert('Configure an LLM provider in Settings (Anthropic key or local Ollama).')
       return
     }
     setAiBusy(true)
     setCurrentIdx(project.sections.findIndex((s) => s.id === section.id))
     setErrors((e) => { const { [section.id]: _omit, ...rest } = e; return rest })
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'rule',
-          mode,
-          projectName: project.name,
-          projectDescription: project.description,
+      const { content } = await generateRule({
+        mode,
+        project: {
+          name: project.name,
+          description: project.description,
           techStack: project.techStack,
-          existingContent: mode === 'expand' ? section.generatedContent : undefined,
-          section: {
-            name: section.name,
-            type: section.type,
-            globs: section.globs,
-            alwaysApply: section.alwaysApply,
-            description: section.description,
-            requirements: section.requirements,
-          },
-        }),
+        },
+        section: {
+          name: section.name,
+          type: section.type,
+          globs: section.globs,
+          alwaysApply: section.alwaysApply,
+          description: section.description,
+          requirements: section.requirements,
+        },
+        existingContent: mode === 'expand' ? section.generatedContent : undefined,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'AI request failed')
       const filename = section.filename || `${kebab(section.name)}.mdc`
-      await updateSection(project.id, section.id, { generatedContent: data.content, filename })
+      await updateSection(project.id, section.id, { generatedContent: content, filename })
       onUpdate()
       setActiveId(section.id)
     } catch (err) {
@@ -117,8 +113,8 @@ export default function FilesPanel({ project, onUpdate }: Props) {
   }
 
   async function draftAll() {
-    if (!hasApiKey) {
-      alert('Add your Anthropic API key in Settings to use AI assistance.')
+    if (!aiReady) {
+      alert('Configure an LLM provider in Settings (Anthropic key or local Ollama).')
       return
     }
     for (let i = 0; i < project.sections.length; i++) {
@@ -173,7 +169,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
             Download .zip ({files.length})
           </button>
         )}
-        {hasApiKey && emptySections.length > 0 && (
+        {aiReady && emptySections.length > 0 && (
           <button
             className="btn btn-accent"
             onClick={draftAll}
@@ -194,9 +190,9 @@ export default function FilesPanel({ project, onUpdate }: Props) {
             )}
           </button>
         )}
-        {!hasApiKey && (
+        {!aiReady && (
           <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-            AI assist is optional — add an Anthropic key in Settings to enable bulk drafting.
+            AI assist is optional — configure an LLM provider in Settings (Anthropic or local Ollama) to enable bulk drafting.
           </span>
         )}
       </div>
@@ -229,7 +225,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>empty</span>
               )}
               {err && <span style={{ fontSize: 11, color: 'var(--red)' }}>error</span>}
-              {hasApiKey && (
+              {aiReady && (
                 <button
                   className="btn btn-ghost"
                   onClick={(e) => { e.stopPropagation(); runAi(section, file ? 'expand' : 'draft') }}

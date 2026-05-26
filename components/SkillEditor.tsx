@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { Project, Skill } from '@/lib/types'
-import { updateSkill, deleteSkill, getApiKeyStatus } from '@/lib/storage'
+import { updateSkill, deleteSkill } from '@/lib/storage'
+import { generateSkill, loadLlmStatus } from '@/lib/ai-client'
 import { syncSkillFrontMatter, skillFilePath } from '@/lib/skills'
 
 interface Props {
@@ -18,7 +19,7 @@ export default function SkillEditor({ project, skill, onUpdate, onDelete }: Prop
   const [toolsInput, setToolsInput] = useState((skill.allowedTools ?? []).join(', '))
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
+  const [aiReady, setAiReady] = useState<boolean | null>(null)
   const [aiBusy, setAiBusy] = useState<null | 'draft' | 'expand'>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
@@ -32,7 +33,7 @@ export default function SkillEditor({ project, skill, onUpdate, onDelete }: Prop
   }, [skill.id])
 
   useEffect(() => {
-    getApiKeyStatus().then((s) => setHasApiKey(s.hasKey)).catch(() => setHasApiKey(false))
+    loadLlmStatus().then((s) => setAiReady(s.ready)).catch(() => setAiReady(false))
   }, [])
 
   function set<K extends keyof Skill>(key: K, val: Skill[K]) {
@@ -89,29 +90,23 @@ export default function SkillEditor({ project, skill, onUpdate, onDelete }: Prop
     setAiError(null)
     setAiBusy(mode)
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'skill',
-          mode,
-          projectName: project.name,
-          projectDescription: project.description,
+      const { content } = await generateSkill({
+        mode,
+        project: {
+          name: project.name,
+          description: project.description,
           techStack: project.techStack,
-          existingContent: mode === 'expand' ? form.body : undefined,
-          notes,
-          skill: {
-            name: form.name,
-            description: form.description,
-            allowedTools: form.allowedTools ?? [],
-          },
-        }),
+        },
+        skill: {
+          name: form.name,
+          description: form.description,
+          allowedTools: form.allowedTools ?? [],
+        },
+        notes,
+        existingContent: mode === 'expand' ? form.body : undefined,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'AI request failed')
-      const body = data.content as string
-      setForm((f) => ({ ...f, body }))
-      await save({ body })
+      setForm((f) => ({ ...f, body: content }))
+      await save({ body: content })
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI request failed')
     } finally {
@@ -119,7 +114,7 @@ export default function SkillEditor({ project, skill, onUpdate, onDelete }: Prop
     }
   }
 
-  const aiAvailable = hasApiKey === true
+  const aiAvailable = aiReady === true
   const hasBody = !!form.body.trim()
   const outputPath = skillFilePath(project.skillFormat, form.name || 'untitled')
 
@@ -215,8 +210,8 @@ export default function SkillEditor({ project, skill, onUpdate, onDelete }: Prop
         <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>AI assist</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
           {aiAvailable
-            ? 'Optional — drafts or expands the skill content above using Claude.'
-            : 'Optional — add an Anthropic API key in Settings to enable.'}
+            ? 'Optional — drafts or expands the skill content above using your configured LLM.'
+            : 'Optional — configure an LLM provider in Settings (Anthropic or local Ollama) to enable.'}
         </span>
         <div style={{ flex: 1 }} />
         <button
