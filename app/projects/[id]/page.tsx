@@ -1,9 +1,10 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Project, SECTION_TYPE_META, SectionType, SkillFormat, TECH_OPTIONS } from '@/lib/types'
+import { Project, RuleFormat, SECTION_TYPE_META, SectionType, SkillFormat, TECH_OPTIONS } from '@/lib/types'
 import { SKILL_FORMATS } from '@/lib/skills'
-import { getProject, addSection, addSkill, updateProject, applyTemplateSections, setSkillFormat } from '@/lib/storage'
+import { RULE_FORMATS } from '@/lib/rule-paths'
+import { getProject, addSection, addSkill, updateProject, applyTemplateSections, setSkillFormat, setRuleFormat } from '@/lib/storage'
 import { RuleTemplate } from '@/lib/types'
 import SectionEditor from '@/components/SectionEditor'
 import SkillEditor from '@/components/SkillEditor'
@@ -106,6 +107,11 @@ export default function ProjectPage() {
 
   async function handleSkillFormat(fmt: SkillFormat) {
     await setSkillFormat(projectId, fmt)
+    refresh()
+  }
+
+  async function handleRuleFormat(fmt: RuleFormat) {
+    await setRuleFormat(projectId, fmt)
     refresh()
   }
 
@@ -271,6 +277,19 @@ export default function ProjectPage() {
                 {s.generatedContent && <div className="dot green" style={{ width: 5, height: 5, flexShrink: 0 }} />}
               </button>
             ))}
+            <div style={{ padding: '6px 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Format</span>
+              <select
+                value={project.ruleFormat}
+                onChange={(e) => handleRuleFormat(e.target.value as RuleFormat)}
+                style={{ fontSize: 11, padding: '3px 22px 3px 6px' }}
+                title={RULE_FORMATS.find((f) => f.value === project.ruleFormat)?.description}
+              >
+                {RULE_FORMATS.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div style={{ padding: '4px 8px 8px', borderTop: '1px solid var(--border)' }}>

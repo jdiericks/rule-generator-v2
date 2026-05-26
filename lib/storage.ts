@@ -1,5 +1,5 @@
 'use client'
-import { Project, RuleSection, RuleTemplate, SectionType, Skill, SkillFormat } from './types'
+import { Project, RuleSection, RuleFormat, RuleTemplate, SectionType, Skill, SkillFormat } from './types'
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -270,6 +270,13 @@ export async function setSkillFormat(projectId: string, skillFormat: SkillFormat
   await http(`/api/projects/${projectId}`, {
     method: 'PATCH',
     body: JSON.stringify({ skillFormat }),
+  })
+}
+
+export async function setRuleFormat(projectId: string, ruleFormat: RuleFormat): Promise<void> {
+  await http(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ruleFormat }),
   })
 }
 

@@ -4,7 +4,7 @@ import { db } from '@/lib/db/client'
 import { projects, sections, skills } from '@/lib/db/schema'
 import { requireUserId, badRequest, notFound, serverError } from '@/lib/api-utils'
 import { serializeSection, serializeSkill } from '@/lib/db/serialize'
-import type { SkillFormat } from '@/lib/types'
+import type { RuleFormat, SkillFormat } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -44,6 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         name: project.name,
         description: project.description,
         techStack: project.techStack ?? [],
+        ruleFormat: (project.ruleFormat as RuleFormat) ?? 'cursor',
         skillFormat: (project.skillFormat as SkillFormat) ?? 'cursor',
         sections: secRows.map(serializeSection),
         skills: skillRows.map(serializeSkill),
@@ -60,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const auth = await requireUserId()
   if (auth instanceof NextResponse) return auth
 
-  let body: { name?: string; description?: string; techStack?: string[]; skillFormat?: string }
+  let body: { name?: string; description?: string; techStack?: string[]; ruleFormat?: string; skillFormat?: string }
   try { body = await req.json() } catch { return badRequest('Invalid JSON body') }
 
   try {
@@ -73,6 +74,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (Array.isArray(body.techStack)) updates.techStack = body.techStack
     if (typeof body.skillFormat === 'string') {
       updates.skillFormat = body.skillFormat === 'opencode' ? 'opencode' : 'cursor'
+    }
+    if (typeof body.ruleFormat === 'string') {
+      updates.ruleFormat = body.ruleFormat === 'opencode' ? 'opencode' : 'cursor'
     }
 
     const [row] = await db
@@ -87,6 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         name: row.name,
         description: row.description,
         techStack: row.techStack ?? [],
+        ruleFormat: (row.ruleFormat as RuleFormat) ?? 'cursor',
         skillFormat: (row.skillFormat as SkillFormat) ?? 'cursor',
         updatedAt: row.updatedAt.toISOString(),
         createdAt: row.createdAt.toISOString(),

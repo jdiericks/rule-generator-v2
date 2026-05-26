@@ -4,6 +4,7 @@ import { Project, RuleSection } from '@/lib/types'
 import { updateSection } from '@/lib/storage'
 import { generateRule, loadLlmStatus } from '@/lib/ai-client'
 import { skillFilePath } from '@/lib/skills'
+import { ruleFilePath, ruleFilename } from '@/lib/rule-paths'
 
 interface OutputFile {
   id: string
@@ -20,14 +21,14 @@ function kebab(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function ruleFileFor(s: RuleSection): OutputFile {
-  const filename = s.filename || `${kebab(s.name)}.mdc`
+function ruleFileFor(s: RuleSection, format: import('@/lib/types').RuleFormat): OutputFile {
+  const filename = ruleFilename(format, s.name, s.filename)
   return {
     id: s.id,
     kind: 'rule',
     name: s.name,
     filename,
-    path: `.cursor/rules/${filename}`,
+    path: ruleFilePath(format, s.name, s.filename),
     content: s.generatedContent,
   }
 }
@@ -51,7 +52,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
 
   const ruleFiles: OutputFile[] = project.sections
     .filter((s) => s.generatedContent.trim())
-    .map(ruleFileFor)
+    .map((s) => ruleFileFor(s, project.ruleFormat))
   const skillFiles: OutputFile[] = project.skills
     .filter((s) => s.body.trim())
     .map((s) => {
@@ -100,7 +101,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
         },
         existingContent: mode === 'expand' ? section.generatedContent : undefined,
       })
-      const filename = section.filename || `${kebab(section.name)}.mdc`
+      const filename = ruleFilename(project.ruleFormat, section.name, section.filename)
       await updateSection(project.id, section.id, { generatedContent: content, filename })
       onUpdate()
       setActiveId(section.id)
@@ -202,7 +203,7 @@ export default function FilesPanel({ project, onUpdate }: Props) {
           <p className="label" style={{ marginBottom: 0 }}>Rule sections</p>
         )}
         {project.sections.map((section, i) => {
-          const file = section.generatedContent.trim() ? ruleFileFor(section) : null
+          const file = section.generatedContent.trim() ? ruleFileFor(section, project.ruleFormat) : null
           const isBusy = aiBusy && currentIdx === i
           const err = errors[section.id]
           return (

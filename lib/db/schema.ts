@@ -96,6 +96,8 @@ export const projects = pgTable(
     // Output format used when writing skill files (and, in future,
     // possibly rule files too). Defaults to Cursor conventions.
     skillFormat: text('skill_format').notNull().default('cursor'),
+    // Output format for rule files. Default = Cursor (.cursor/rules/<slug>.mdc).
+    ruleFormat: text('rule_format').notNull().default('cursor'),
     createdAt: timestamp('created_at', { mode: 'date' })
       .notNull()
       .$defaultFn(() => new Date()),
